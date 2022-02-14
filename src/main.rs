@@ -20,7 +20,6 @@ enum Name {
 
 impl fmt::Display for Name {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let mut res = String::new();
         match self {
             Name::Pawn => write!(f, "P"),
             Name::Bishop => write!(f, "B"),
@@ -121,7 +120,7 @@ impl fmt::Display for Board {
         res.push_str("\n");
 
         for y in ('1'..='8').rev() {
-            res.push_str(format!("{}|\t",y).as_str());
+            res.push_str(format!("{}|\t", y).as_str());
             for x in 'a'..='h' {
                 match &self.pieces[&(x, y)] {
                     None => res.push_str("  |\t"),
@@ -141,10 +140,9 @@ impl fmt::Display for Board {
                 res.push_str("\t-");
             }
             res.push_str("\n");
-
         }
         for x in 'a'..='h' {
-            res.push_str(format!("\t{}",x).as_str());
+            res.push_str(format!("\t{}", x).as_str());
         }
         res.push_str("\n");
         write!(f, "{}", res)
