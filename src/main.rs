@@ -31,6 +31,7 @@ struct Piece {
 impl fmt::Display for Piece {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self.name {
+            // unicode representation (https://en.wikipedia.org/wiki/Chess_symbols_in_Unicode):
             Name::Pawn => if self.color == Color::White { write!(f, "\u{265F}") } else { write!(f, "\u{2659}") },
             Name::Bishop => if self.color == Color::White { write!(f, "\u{265D}") } else { write!(f, "\u{2657}") },
             Name::Knight => if self.color == Color::White { write!(f, "\u{265E}") } else { write!(f, "\u{2658}") },
@@ -47,33 +48,46 @@ struct Board {
     captured: HashMap<Color, Vec<Piece>>,
 }
 
+impl Piece {
+    fn new(name: Name, color: Color) -> Piece {
+        match name {
+            Name::Pawn => Piece { name, color, value: 1.0 },
+            Name::Knight => Piece { name, color, value: 3.0 },
+            Name::Bishop => Piece { name, color, value: 3.0 },
+            Name::Rook => Piece { name, color, value: 5.0 },
+            Name::Queen => Piece { name, color, value: 8.0 },
+            Name::King => Piece { name, color, value: 3.5 },
+        }
+    }
+}
+
 impl Board {
     fn new() -> Board {
         // White pieces
-        let pawn_w = Piece { name: Name::Pawn, color: Color::White, value: 1.0 };
+        let pawn_w = Piece::new(Name::Pawn, Color::White);
 
-        let knight_w = Piece { name: Name::Knight, color: Color::White, value: 3.0 };
+        let knight_w = Piece::new(Name::Knight, Color::White);
 
-        let bishop_w = Piece { name: Name::Bishop, color: Color::White, value: 3.0 };
+        let bishop_w = Piece::new(Name::Bishop, Color::White);
 
-        let rook_w = Piece { name: Name::Rook, color: Color::White, value: 5.0 };
+        let rook_w = Piece::new(Name::Rook, Color::White);
 
-        let queen_w = Piece { name: Name::Queen, color: Color::White, value: 8.0 };
+        let queen_w = Piece::new(Name::Queen, Color::White);
 
-        let king_w = Piece { name: Name::King, color: Color::White, value: 3.5 };
+        let king_w = Piece::new(Name::King, Color::White);
 
         // Black pieces
-        let pawn_b = Piece { name: Name::Pawn, color: Color::Black, value: 1.0 };
+        let pawn_b = Piece::new(Name::Pawn, Color::Black);
 
-        let knight_b = Piece { name: Name::Knight, color: Color::Black, value: 3.0 };
+        let knight_b = Piece::new(Name::Knight, Color::Black);
 
-        let bishop_b = Piece { name: Name::Bishop, color: Color::Black, value: 3.0 };
+        let bishop_b = Piece::new(Name::Bishop, Color::Black);
 
-        let rook_b = Piece { name: Name::Rook, color: Color::Black, value: 5.0 };
+        let rook_b = Piece::new(Name::Rook, Color::Black);
 
-        let queen_b = Piece { name: Name::Queen, color: Color::Black, value: 8.0 };
+        let queen_b = Piece::new(Name::Queen, Color::Black);
 
-        let king_b = Piece { name: Name::King, color: Color::Black, value: 3.5 };
+        let king_b = Piece::new(Name::King, Color::Black);
 
         let mut pieces: HashMap<Position, Option<Piece>> = HashMap::new();
         for x in 'a'..='h' {
