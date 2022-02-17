@@ -18,18 +18,6 @@ enum Name {
     Queen,
 }
 
-impl fmt::Display for Name {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Name::Pawn => write!(f, "P"),
-            Name::Bishop => write!(f, "B"),
-            Name::Knight => write!(f, "H"),
-            Name::King => write!(f, "K"),
-            Name::Rook => write!(f, "R"),
-            Name::Queen => write!(f, "Q")
-        }
-    }
-}
 
 type Position = (char, char);
 
@@ -38,6 +26,19 @@ struct Piece {
     name: Name,
     color: Color,
     value: f32,
+}
+
+impl fmt::Display for Piece {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self.name {
+            Name::Pawn => if self.color == Color::White { write!(f, "\u{265F}") } else { write!(f, "\u{2659}") },
+            Name::Bishop => if self.color == Color::White { write!(f, "\u{265D}") } else { write!(f, "\u{2657}") },
+            Name::Knight => if self.color == Color::White { write!(f, "\u{265E}") } else { write!(f, "\u{2658}") },
+            Name::King => if self.color == Color::White { write!(f, "\u{265A}") } else { write!(f, "\u{2654}") },
+            Name::Rook => if self.color == Color::White { write!(f, "\u{265C}") } else { write!(f, "\u{2656}") },
+            Name::Queen => if self.color == Color::White { write!(f, "\u{265B}") } else { write!(f, "\u{2655}") },
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -125,12 +126,7 @@ impl fmt::Display for Board {
                 match &self.pieces[&(x, y)] {
                     None => res.push_str("  |\t"),
                     Some(piece) => {
-                        let pre_fix = if piece.color == Color::White {
-                            String::from("W")
-                        } else {
-                            String::from("B")
-                        };
-                        res.push_str(format!("{}{}|\t", pre_fix, piece.name).as_str())
+                        res.push_str(format!("{}|\t", piece).as_str())
                     }
                 }
             }
