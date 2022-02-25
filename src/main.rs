@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Formatter, write};
+use crate::MoveType::Vertical;
+use crate::Name::Pawn;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Color {
@@ -18,8 +20,8 @@ enum Name {
     Queen,
 }
 
-
 type Position = (char, char);
+
 
 #[derive(Debug, Clone)]
 struct Piece {
@@ -43,10 +45,30 @@ impl fmt::Display for Piece {
 }
 
 #[derive(Debug, Clone)]
+enum MoveType {
+    Vertical,
+    Horizontal,
+    Diagonal,
+    Jump,
+    Enpassant,
+    Castle,
+}
+
+#[derive(Debug, Clone)]
+struct Move {
+    from: Position,
+    to: Position,
+    move_type: MoveType,
+}
+
+
+#[derive(Debug, Clone)]
 struct Board {
     pieces: HashMap<Position, Option<Piece>>,
     captured: HashMap<Color, Vec<Piece>>,
+    history: Vec<(Piece, Move)>,
 }
+
 
 impl Piece {
     fn new(name: Name, color: Color) -> Piece {
@@ -122,8 +144,44 @@ impl Board {
             }
         }
         let captured: HashMap<Color, Vec<Piece>> = HashMap::new();
-        Board { pieces, captured }
+        let history: Vec<(Piece, Move)> = Vec::new();
+        Board { pieces, captured, history }
     }
+
+    fn rm_invalid(&self, moves: &Vec<Move>) -> Vec<Move> {
+        for m in moves {}
+    }
+
+    fn possible_moves(&self, position: Position) -> Vec<Move> {
+        if self.pieces[&position].is_none() {
+            return Vec::new();
+        }
+        let mut moves: Vec<Move> = Vec::new();
+
+        let piece = self.pieces[&position].as_ref().unwrap();
+        match piece.name {
+            Name::King => {
+                moves.append(
+                    vec![
+                        Move{
+                            move_type: Vertical
+                        }
+                    ].as_mut()
+
+                )
+            }
+            Name::Queen => {}
+            Name::Rook => {}
+            Name::Bishop => {}
+            Name::Knight => {}
+            Name::Pawn => {}
+        }
+        self.rm_invalid(&moves)
+    }
+}
+
+fn padd(pos: Position, to_add: (u8, u8)) -> Position {
+    ((pos.0 as u8 + to_add.0) as char, (pos.1 as u8) as char)
 }
 
 impl fmt::Display for Board {
