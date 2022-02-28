@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
-use std::fmt::{Formatter, write};
-use crate::MoveType::Vertical;
-use crate::Name::Pawn;
+use std::fmt::{Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Color {
@@ -51,7 +49,8 @@ enum MoveType {
     Diagonal,
     Jump,
     Enpassant,
-    Castle,
+    LongCastle,
+    ShortCastle,
 }
 
 #[derive(Debug, Clone)]
@@ -147,41 +146,141 @@ impl Board {
         let history: Vec<(Piece, Move)> = Vec::new();
         Board { pieces, captured, history }
     }
+}
 
-    fn rm_invalid(&self, moves: &Vec<Move>) -> Vec<Move> {
-        for m in moves {}
-    }
+fn padd(pos: Position, to_add: (i16, i16)) -> Position {
+    let new_x = (pos.0 as i16 + to_add.0) as u8 as char;
+    let new_y = (pos.1 as i16 + to_add.1) as u8 as char;
 
-    fn possible_moves(&self, position: Position) -> Vec<Move> {
-        if self.pieces[&position].is_none() {
-            return Vec::new();
-        }
-        let mut moves: Vec<Move> = Vec::new();
+    debug_assert!('a' <= new_x && new_x <= 'h' && '1' <= new_y && new_y <= '8', "New position out of range.");
 
-        let piece = self.pieces[&position].as_ref().unwrap();
-        match piece.name {
-            Name::King => {
-                moves.append(
-                    vec![
-                        Move{
-                            move_type: Vertical
-                        }
-                    ].as_mut()
+    (new_x, new_y)
+}
 
-                )
-            }
-            Name::Queen => {}
-            Name::Rook => {}
-            Name::Bishop => {}
-            Name::Knight => {}
-            Name::Pawn => {}
-        }
-        self.rm_invalid(&moves)
+fn p2num(pos: Position) -> (u8, u8) {
+    (pos.0 as u8, pos.1 as u8)
+}
+
+fn valid_pos_in_one_move(pos: Position, board: &Board, color: &Color) -> bool {
+    match board.pieces.get(&pos) {
+        // out of boundary
+        None => { false }
+        // no piece there good
+        Some(None) => { true }
+        // cannot be same color
+        Some(Some(p)) => { p.color != *color }
     }
 }
 
-fn padd(pos: Position, to_add: (u8, u8)) -> Position {
-    ((pos.0 as u8 + to_add.0) as char, (pos.1 as u8) as char)
+fn can_long_castle(board: &Board, color: &Color) -> bool {
+    unimplemented!()
+}
+
+fn can_short_castle(board: &Board, color: &Color) -> bool {
+    unimplemented!()
+}
+
+fn possible_moves(board: &Board, pos: Position) -> Vec<Move> {
+    if board.pieces[&pos].is_none() {
+        return Vec::new();
+    }
+
+    let mut moves: Vec<Move> = Vec::new();
+
+    let piece = board.pieces[&pos].as_ref().unwrap();
+    match piece.name {
+        Name::King => {
+            if valid_pos_in_one_move(padd(pos, (1, 0)), &board, &piece.color) {
+                moves.push(
+                    Move {
+                        move_type: MoveType::Horizontal,
+                        from: pos,
+                        to: padd(pos, (1, 0)),
+                    });
+            }
+            if valid_pos_in_one_move(padd(pos, (-1, 0)), &board, &piece.color) {
+                moves.push(
+                    Move {
+                        move_type: MoveType::Horizontal,
+                        from: pos,
+                        to: padd(pos, (-1, 0)),
+                    });
+            }
+            if valid_pos_in_one_move(padd(pos, (0, 1)), &board, &piece.color) {
+                moves.push(
+                    Move {
+                        move_type: MoveType::Vertical,
+                        from: pos,
+                        to: padd(pos, (0, 1)),
+                    });
+            }
+            if valid_pos_in_one_move(padd(pos, (0, -1)), &board, &piece.color) {
+                moves.push(
+                    Move {
+                        move_type: MoveType::Vertical,
+                        from: pos,
+                        to: padd(pos, (0, -1)),
+                    });
+            }
+            if valid_pos_in_one_move(padd(pos, (1, 1)), &board, &piece.color) {
+                moves.push(
+                    Move {
+                        move_type: MoveType::Vertical,
+                        from: pos,
+                        to: padd(pos, (1, 1)),
+                    });
+            }
+            if valid_pos_in_one_move(padd(pos, (-1, 1)), &board, &piece.color) {
+                moves.push(
+                    Move {
+                        move_type: MoveType::Vertical,
+                        from: pos,
+                        to: padd(pos, (-1, 1)),
+                    });
+            }
+            if valid_pos_in_one_move(padd(pos, (1, -1)), &board, &piece.color) {
+                moves.push(
+                    Move {
+                        move_type: MoveType::Vertical,
+                        from: pos,
+                        to: padd(pos, (1, -1)),
+                    });
+            }
+            if valid_pos_in_one_move(padd(pos, (-1, -1)), &board, &piece.color) {
+                moves.push(
+                    Move {
+                        move_type: MoveType::Vertical,
+                        from: pos,
+                        to: padd(pos, (-1, -1)),
+                    });
+            }
+
+            if can_long_castle(board, &piece.color) {
+                moves.push(
+                    Move {
+                        move_type: MoveType::LongCastle,
+                        from: pos,
+                        to: padd(pos, (-2, 0)),
+                    }
+                )
+            }
+            if can_short_castle(board, &piece.color) {
+                moves.push(
+                    Move {
+                        move_type: MoveType::LongCastle,
+                        from: pos,
+                        to: padd(pos, (2, 0)),
+                    }
+                )
+            }
+        }
+        Name::Queen => {}
+        Name::Rook => {}
+        Name::Bishop => {}
+        Name::Knight => {}
+        Name::Pawn => {}
+    }
+    moves
 }
 
 impl fmt::Display for Board {
