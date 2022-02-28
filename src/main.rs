@@ -66,6 +66,8 @@ struct Board {
     pieces: HashMap<Position, Option<Piece>>,
     captured: HashMap<Color, Vec<Piece>>,
     history: Vec<(Piece, Move)>,
+    able_to_long_castle: HashMap<Color, bool>,
+    able_to_short_caste: HashMap<Color, bool>,
 }
 
 
@@ -144,15 +146,14 @@ impl Board {
         }
         let captured: HashMap<Color, Vec<Piece>> = HashMap::new();
         let history: Vec<(Piece, Move)> = Vec::new();
-        Board { pieces, captured, history }
+        let able_to_castle = HashMap::from([(Color::White, true), (Color::Black, true)]);
+        Board { pieces, captured, history, able_to_long_castle: able_to_castle.clone(), able_to_short_caste: able_to_castle }
     }
 }
 
 fn padd(pos: Position, to_add: (i16, i16)) -> Position {
     let new_x = (pos.0 as i16 + to_add.0) as u8 as char;
     let new_y = (pos.1 as i16 + to_add.1) as u8 as char;
-
-    debug_assert!('a' <= new_x && new_x <= 'h' && '1' <= new_y && new_y <= '8', "New position out of range.");
 
     (new_x, new_y)
 }
@@ -172,12 +173,26 @@ fn valid_pos_in_one_move(pos: Position, board: &Board, color: &Color) -> bool {
     }
 }
 
-fn can_long_castle(board: &Board, color: &Color) -> bool {
-    unimplemented!()
+fn can_short_castle(board: &Board, color: &Color) -> bool {
+    match color {
+        Color::Black => {
+            board.able_to_long_castle[color] && board.pieces[&('f', '8')].is_none() && board.pieces[&('g', '8')].is_none()
+        }
+        Color::White => {
+            board.able_to_long_castle[color] && board.pieces[&('f', '1')].is_none() && board.pieces[&('g', '1')].is_none()
+        }
+    }
 }
 
-fn can_short_castle(board: &Board, color: &Color) -> bool {
-    unimplemented!()
+fn can_long_castle(board: &Board, color: &Color) -> bool {
+    match color {
+        Color::Black => {
+            board.able_to_short_caste[&color] && board.pieces[&('b', '8')].is_none() && board.pieces[&('c', '8')].is_none() && board.pieces[&('d', '8')].is_none()
+        }
+        Color::White => {
+            board.able_to_short_caste[&color] && board.pieces[&('b', '1')].is_none() && board.pieces[&('c', '1')].is_none() && board.pieces[&('d', '1')].is_none()
+        }
+    }
 }
 
 fn possible_moves(board: &Board, pos: Position) -> Vec<Move> {
@@ -319,4 +334,5 @@ impl fmt::Display for Board {
 fn main() {
     let board = Board::new();
     println!("{}", board);
+    println!("{:?}", possible_moves(&board, ('e', '8')));
 }
