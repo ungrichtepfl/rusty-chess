@@ -151,9 +151,9 @@ impl Board {
     }
 }
 
-fn padd(pos: Position, to_add: (i16, i16)) -> Position {
-    let new_x = (pos.0 as i16 + to_add.0) as u8 as char;
-    let new_y = (pos.1 as i16 + to_add.1) as u8 as char;
+fn padd(pos: Position, to_add: (i8, i8)) -> Position {
+    let new_x = (pos.0 as i8 + to_add.0) as u8 as char;
+    let new_y = (pos.1 as i8 + to_add.1) as u8 as char;
 
     (new_x, new_y)
 }
