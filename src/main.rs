@@ -390,7 +390,7 @@ fn possible_moves(board: &Board, pos: Position) -> Vec<Move> {
             for x in [-1, 0, 1] {
                 for y in [-1, 0, 1] {
                     let new_pos = padd(pos, (x, y));
-                    if no_obstacles_in_one_move(new_pos, &board, &piece.color) {
+                    if no_obstacles_in_one_move(new_pos, &board, &piece.color) && !pos_under_attack(new_pos, &board, &piece) {
                         moves.push(
                             Move {
                                 move_type: MoveType::Straight,
