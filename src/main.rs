@@ -61,9 +61,12 @@ enum MoveType {
 
 #[derive(Debug, Clone)]
 struct Move {
+    piece: Piece,
     from: Position,
     to: Position,
     move_type: MoveType,
+    traversed_squares: Vec<Position>,
+    captured_piece: Option<Piece>,
 }
 
 
@@ -75,6 +78,7 @@ struct Board {
     able_to_long_castle: HashMap<Color, bool>,
     able_to_short_caste: HashMap<Color, bool>,
     protected_squares: HashMap<Color, Vec<Position>>,
+    pieces_attacking_king: HashMap<Color, Vec<(Piece, Vec<Position>)>>,
 }
 
 
@@ -172,7 +176,22 @@ impl Board {
             (Color::Black, protected_squares_black),
         ]);
 
-        Board { pieces, captured, history, protected_squares, able_to_long_castle: able_to_castle.clone(), able_to_short_caste: able_to_castle }
+        let pieces_attacking_king = HashMap::from(
+            [
+                (Color::White, Vec::new()),
+                (Color::Black, Vec::new())
+            ]
+        );
+
+        Board {
+            pieces,
+            captured,
+            history,
+            protected_squares,
+            pieces_attacking_king,
+            able_to_long_castle: able_to_castle.clone(),
+            able_to_short_caste: able_to_castle,
+        }
     }
 }
 
@@ -292,62 +311,83 @@ fn pos_protected(pos: Position, board: &Board, color: &Color) -> bool {
 
 fn possible_horizontal_vertical_moves(board: &Board, pos: Position, piece: &Piece, get_protected: bool) -> Vec<Move> {
     let mut moves = Vec::new();
+
     // horizontal movement right
+    let mut traversed_squares = vec![pos];
     for x in 1..=8 {
         let new_pos = padd(pos, (x, 0));
         if !no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) {
             break;
         }
+        traversed_squares.push(new_pos);
         moves.push(
             Move {
+                piece: piece.clone(),
                 move_type: MoveType::Normal,
                 from: pos,
                 to: new_pos,
+                traversed_squares: traversed_squares.clone(),
+                captured_piece: board.pieces[&new_pos].clone(),
             }
         )
     }
 
     // horizontal movement left
+    traversed_squares = vec![pos];
     for x in (-8..=-1).rev() {
         let new_pos = padd(pos, (x, 0));
         if !no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) {
             break;
         }
+        traversed_squares.push(new_pos);
         moves.push(
             Move {
+                piece: piece.clone(),
                 move_type: MoveType::Normal,
                 from: pos,
                 to: new_pos,
+                traversed_squares: traversed_squares.clone(),
+                captured_piece: board.pieces[&new_pos].clone(),
             }
         )
     }
 
     // vertical movement up
+    traversed_squares = vec![pos];
     for y in 1..=8 {
         let new_pos = padd(pos, (0, y));
         if !no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) {
             break;
         }
+        traversed_squares.push(new_pos);
         moves.push(
             Move {
+                piece: piece.clone(),
                 move_type: MoveType::Normal,
                 from: pos,
                 to: new_pos,
+                traversed_squares: traversed_squares.clone(),
+                captured_piece: board.pieces[&new_pos].clone(),
             }
         )
     }
 
     // vertical movement down
+    traversed_squares = vec![pos];
     for y in (-8..=-1).rev() {
         let new_pos = padd(pos, (0, y));
         if !no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) {
             break;
         }
+        traversed_squares.push(new_pos);
         moves.push(
             Move {
+                piece: piece.clone(),
                 move_type: MoveType::Normal,
                 from: pos,
                 to: new_pos,
+                traversed_squares: traversed_squares.clone(),
+                captured_piece: board.pieces[&new_pos].clone(),
             }
         )
     }
@@ -359,68 +399,116 @@ fn possible_diagonal_moves(board: &Board, pos: Position, piece: &Piece, get_prot
     let mut moves = Vec::new();
 
     // right diagonal up
+    let mut traversed_squares = vec![pos];
     for (x, y) in (1..=8).zip(1..=8) {
         let new_pos = padd(pos, (x, y));
         if !no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) {
             break;
         }
+        traversed_squares.push(new_pos);
         moves.push(
             Move {
+                piece: piece.clone(),
                 move_type: MoveType::Normal,
                 from: pos,
                 to: new_pos,
+                traversed_squares: traversed_squares.clone(),
+                captured_piece: board.pieces[&new_pos].clone(),
             }
         )
     }
 
     // right diagonal down
+    traversed_squares = vec![pos];
     for (x, y) in (-8..=-1).rev().zip((-8..=-1).rev()) {
         let new_pos = padd(pos, (x, y));
         if !no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) {
             break;
         }
+        traversed_squares.push(new_pos);
         moves.push(
             Move {
+                piece: piece.clone(),
                 move_type: MoveType::Normal,
                 from: pos,
                 to: new_pos,
+                traversed_squares: traversed_squares.clone(),
+                captured_piece: board.pieces[&new_pos].clone(),
             }
         )
     }
 
 
     // left diagonal up
+    traversed_squares = vec![pos];
     for (x, y) in (-8..=-1).rev().zip(1..=8) {
         let new_pos = padd(pos, (x, y));
         if !no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) {
             break;
         }
+        traversed_squares.push(new_pos);
         moves.push(
             Move {
+                piece: piece.clone(),
                 move_type: MoveType::Normal,
                 from: pos,
                 to: new_pos,
+                traversed_squares: traversed_squares.clone(),
+                captured_piece: board.pieces[&new_pos].clone(),
             }
         )
     }
 
     // left diagonal down
+    traversed_squares = vec![pos];
     for (x, y) in (1..=8).zip((-8..=-1).rev()) {
         let new_pos = padd(pos, (x, y));
         if !no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) {
             break;
         }
+        traversed_squares.push(new_pos);
         moves.push(
             Move {
+                piece: piece.clone(),
                 move_type: MoveType::Normal,
                 from: pos,
                 to: new_pos,
+                traversed_squares: traversed_squares.clone(),
+                captured_piece: board.pieces[&new_pos].clone(),
             }
         )
     }
     moves
 }
 
+
+fn pieces_attacking_king(board: &Board) -> HashMap<Color, Vec<(Piece, Vec<Position>)>> {
+    let mut pieces_white: Vec<(Piece, Vec<Position>)> = Vec::new();
+    let mut pieces_black: Vec<(Piece, Vec<Position>)> = Vec::new();
+    for x in 'a'..='h' {
+        for y in '1'..='8' {
+            let moves = possible_moves(board, (x, y.clone()), false);
+            for mv in moves {
+                if mv.captured_piece.is_some() {
+                    if mv.captured_piece.unwrap().name == Name::King {
+                        if mv.piece.color == Color::White {
+                            pieces_white.push((mv.piece, mv.traversed_squares));
+                        } else {
+                            pieces_black.push((mv.piece, mv.traversed_squares));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    HashMap::from(
+        [
+            (Color::White, pieces_white),
+            (Color::White, pieces_black)
+        ]
+    )
+}
 
 fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move> {
     if board.pieces[&pos].is_none() {
@@ -439,9 +527,12 @@ fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move
                         !pos_protected(new_pos, &board, &piece.color) {
                         moves.push(
                             Move {
+                                piece: piece.clone(),
                                 move_type: MoveType::Normal,
                                 from: pos,
                                 to: new_pos,
+                                traversed_squares: vec![pos, new_pos],
+                                captured_piece: board.pieces[&new_pos].clone(),
                             }
                         )
                     }
@@ -451,18 +542,24 @@ fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move
             if can_long_castle(board, &piece.color) {
                 moves.push(
                     Move {
+                        piece: piece.clone(),
                         move_type: MoveType::LongCastle,
                         from: pos,
                         to: padd(pos, (-2, 0)),
+                        traversed_squares: vec![pos, padd(pos, (-1, 0)), padd(pos, (-2, 0))],
+                        captured_piece: board.pieces[&padd(pos, (-2, 0))].clone(),
                     }
                 )
             }
             if can_short_castle(board, &piece.color) {
                 moves.push(
                     Move {
+                        piece: piece.clone(),
                         move_type: MoveType::ShortCastle,
                         from: pos,
                         to: padd(pos, (2, 0)),
+                        traversed_squares: vec![pos, padd(pos, (1, 0)), padd(pos, (2, 0))],
+                        captured_piece: board.pieces[&padd(pos, (2, 0))].clone(),
                     }
                 )
             }
@@ -499,9 +596,12 @@ fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move
                 if no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) {
                     moves.push(
                         Move {
+                            piece: piece.clone(),
                             move_type: MoveType::Jump,
                             from: pos,
                             to: new_pos,
+                            traversed_squares: vec![pos, new_pos],
+                            captured_piece: board.pieces[&new_pos].clone(),
                         }
                     )
                 }
@@ -524,9 +624,12 @@ fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move
                 }
                 moves.push(
                     Move {
+                        piece: piece.clone(),
                         move_type: MoveType::Normal,
                         from: pos,
                         to: new_pos,
+                        traversed_squares: vec![pos, new_pos],
+                        captured_piece: board.pieces[&new_pos].clone(),
                     }
                 )
             }
@@ -538,9 +641,12 @@ fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move
                     Some(Some(other_piece)) => {
                         if other_piece.color != piece.color {
                             moves.push(Move {
+                                piece: piece.clone(),
                                 move_type: MoveType::Normal,
                                 from: pos,
                                 to: new_pos,
+                                traversed_squares: vec![pos, new_pos],
+                                captured_piece: board.pieces[&new_pos].clone(),
                             })
                         }
                     }
@@ -562,9 +668,12 @@ fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move
                     };
                     moves.push(
                         Move {
+                            piece: piece.clone(),
                             move_type: MoveType::Enpassant,
                             from: pos,
                             to: new_pos,
+                            traversed_squares: vec![pos, new_pos],
+                            captured_piece: board.pieces[&new_pos].clone(),
                         }
                     )
                 }
