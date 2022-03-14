@@ -183,36 +183,56 @@ fn no_obstacles_in_one_move(pos: Position, board: &Board, color: &Color) -> bool
 }
 
 fn can_short_castle(board: &Board, color: &Color) -> bool {
+    let check = if *color == Color::White {
+        pos_under_attack(('e', '1'), board, color)
+    } else {
+        pos_under_attack(('e', '8'), board, color)
+    };
     match color {
         Color::Black => {
-            board.able_to_long_castle[color] && board.pieces[&('f', '8')].is_none() && board.pieces[&('g', '8')].is_none()
+            !check && board.able_to_long_castle[color] && board.pieces[&('f', '8')].is_none() &&
+                board.pieces[&('g', '8')].is_none() && !pos_under_attack(('f', '8'), board, color) &&
+                !pos_under_attack(('g', '8'), board, color)
         }
         Color::White => {
-            board.able_to_long_castle[color] && board.pieces[&('f', '1')].is_none() && board.pieces[&('g', '1')].is_none()
+            !check && board.able_to_long_castle[color] && board.pieces[&('f', '1')].is_none() &&
+                board.pieces[&('g', '1')].is_none() && !pos_under_attack(('f', '1'), board, color) &&
+                !pos_under_attack(('g', '1'), board, color)
         }
     }
 }
 
 fn can_long_castle(board: &Board, color: &Color) -> bool {
+    let check = if *color == Color::White {
+        pos_under_attack(('e', '1'), board, color)
+    } else {
+        pos_under_attack(('e', '8'), board, color)
+    };
     match color {
         Color::Black => {
-            board.able_to_short_caste[&color] && board.pieces[&('b', '8')].is_none() && board.pieces[&('c', '8')].is_none() && board.pieces[&('d', '8')].is_none()
+            !check && board.able_to_short_caste[&color] && board.pieces[&('b', '8')].is_none() &&
+                board.pieces[&('c', '8')].is_none() && board.pieces[&('d', '8')].is_none() &&
+                !pos_under_attack(('b', '8'), board, color) && !pos_under_attack(('c', '8'), board, color) &&
+                !pos_under_attack(('d', '8'), board, color)
         }
         Color::White => {
-            board.able_to_short_caste[&color] && board.pieces[&('b', '1')].is_none() && board.pieces[&('c', '1')].is_none() && board.pieces[&('d', '1')].is_none()
+            !check && board.able_to_short_caste[&color] && board.pieces[&('b', '1')].is_none() &&
+                board.pieces[&('c', '1')].is_none() && board.pieces[&('d', '1')].is_none() &&
+                !pos_under_attack(('b', '1'), board, color) && !pos_under_attack(('c', '1'), board, color) &&
+                !pos_under_attack(('d', '1'), board, color)
         }
     }
 }
 
-fn get_attacked_squares(board: &Board) -> HashMap<Color, Vec<Position>> {
+fn get_all_attacked_squares(board: &Board) -> HashMap<Color, Vec<Position>> {
     let mut attacked_squares_white: Vec<Position> = Vec::new();
     let mut attacked_squares_black: Vec<Position> = Vec::new();
     for x in '1'..='8' {
         for y in 'a'..='h' {
             if board.pieces[&(x, y)].is_some() {
                 let piece = board.pieces[&(x, y)].as_ref().unwrap();
-                let posible_moves = possible_moves(&board, (x, y));
-                for m in posible_moves {
+                let possible_moves = possible_moves(&board, (x, y));
+                for m in possible_moves {
                     if piece.color == Color::White {
                         attacked_squares_white.push(m.to);
                     } else {
@@ -231,8 +251,8 @@ fn get_attacked_squares(board: &Board) -> HashMap<Color, Vec<Position>> {
     )
 }
 
-fn pos_under_attack(pos: Position, board: &Board, piece: &Piece) -> bool {
-    let attacked_positions: &Vec<Position> = if piece.color == Color::White {
+fn pos_under_attack(pos: Position, board: &Board, color: &Color) -> bool {
+    let attacked_positions: &Vec<Position> = if *color == Color::White {
         board.attacked_squares[&Color::White].as_ref()
     } else {
         board.attacked_squares[&Color::Black].as_ref()
@@ -390,7 +410,8 @@ fn possible_moves(board: &Board, pos: Position) -> Vec<Move> {
             for x in [-1, 0, 1] {
                 for y in [-1, 0, 1] {
                     let new_pos = padd(pos, (x, y));
-                    if no_obstacles_in_one_move(new_pos, &board, &piece.color) && !pos_under_attack(new_pos, &board, &piece) {
+                    if no_obstacles_in_one_move(new_pos, &board, &piece.color) &&
+                        !pos_under_attack(new_pos, &board, &piece.color) {
                         moves.push(
                             Move {
                                 move_type: MoveType::Straight,
