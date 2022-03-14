@@ -510,6 +510,10 @@ fn pieces_attacking_king(board: &Board) -> HashMap<Color, Vec<(Piece, Vec<Positi
     )
 }
 
+fn check(board: &Board, color: &Color)->bool{
+    !board.pieces_attacking_king[color].is_empty()
+}
+
 fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move> {
     if board.pieces[&pos].is_none() {
         return Vec::new();
