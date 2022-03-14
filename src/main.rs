@@ -8,6 +8,15 @@ enum Color {
     Black,
 }
 
+impl Color {
+    fn invert(&self) -> Color {
+        match self {
+            Color::White => { Color::Black }
+            Color::Black => { Color::White }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Name {
     Pawn,
@@ -43,7 +52,7 @@ impl fmt::Display for Piece {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum MoveType {
-    Straight,
+    Normal,
     Jump,
     Enpassant,
     LongCastle,
@@ -65,7 +74,7 @@ struct Board {
     history: Vec<(Piece, Move)>,
     able_to_long_castle: HashMap<Color, bool>,
     able_to_short_caste: HashMap<Color, bool>,
-    attacked_squares: HashMap<Color, Vec<Position>>,
+    protected_squares: HashMap<Color, Vec<Position>>,
 }
 
 
@@ -145,18 +154,25 @@ impl Board {
         let captured: HashMap<Color, Vec<Piece>> = HashMap::new();
         let history: Vec<(Piece, Move)> = Vec::new();
         let able_to_castle = HashMap::from([(Color::White, true), (Color::Black, true)]);
-        let mut attacked_squares_white: Vec<Position> = Vec::new();
-        let mut attacked_squares_black: Vec<Position> = Vec::new();
+        let mut protected_squares_white: Vec<Position> = Vec::new();
+        let mut protected_squares_black: Vec<Position> = Vec::new();
         for x in 'a'..='h' {
-            attacked_squares_white.push((x, '3'));
-            attacked_squares_black.push((x, '6'));
+            protected_squares_white.push((x, '3'));
+            protected_squares_white.push((x, '2'));
+            protected_squares_black.push((x, '6'));
+            protected_squares_black.push((x, '7'));
+            if x != 'a' || x != 'h' {
+                protected_squares_white.push((x, '1'));
+                protected_squares_black.push((x, '8'));
+            }
         }
-        let attacked_squares = HashMap::from([
-            (Color::White, attacked_squares_white),
-            (Color::Black, attacked_squares_black),
+
+        let protected_squares = HashMap::from([
+            (Color::White, protected_squares_white),
+            (Color::Black, protected_squares_black),
         ]);
 
-        Board { pieces, captured, history, attacked_squares, able_to_long_castle: able_to_castle.clone(), able_to_short_caste: able_to_castle }
+        Board { pieces, captured, history, protected_squares, able_to_long_castle: able_to_castle.clone(), able_to_short_caste: able_to_castle }
     }
 }
 
@@ -171,72 +187,81 @@ fn p2num(pos: Position) -> (u8, u8) {
     (pos.0 as u8, pos.1 as u8)
 }
 
-fn no_obstacles_in_one_move(pos: Position, board: &Board, color: &Color) -> bool {
+fn in_board_boundary(pos: Position, board: &Board) -> bool {
+    match board.pieces.get(&pos) {
+        // out of boundary
+        None => { false }
+        // in boundary
+        _ => { true }
+    }
+}
+
+fn no_obstacles_in_one_move(pos: Position, board: &Board, color: &Color, get_protected: bool) -> bool {
     match board.pieces.get(&pos) {
         // out of boundary
         None => { false }
         // no piece there: good
         Some(None) => { true }
         // cannot be same color
-        Some(Some(p)) => { p.color != *color }
+        Some(Some(p)) => { get_protected || p.color != *color }
     }
 }
 
 fn can_short_castle(board: &Board, color: &Color) -> bool {
     let check = if *color == Color::White {
-        pos_under_attack(('e', '1'), board, color)
+        pos_protected(('e', '1'), board, color)
     } else {
-        pos_under_attack(('e', '8'), board, color)
+        pos_protected(('e', '8'), board, color)
     };
     match color {
         Color::Black => {
             !check && board.able_to_long_castle[color] && board.pieces[&('f', '8')].is_none() &&
-                board.pieces[&('g', '8')].is_none() && !pos_under_attack(('f', '8'), board, color) &&
-                !pos_under_attack(('g', '8'), board, color)
+                board.pieces[&('g', '8')].is_none() && !pos_protected(('f', '8'), board, color) &&
+                !pos_protected(('g', '8'), board, color)
         }
         Color::White => {
             !check && board.able_to_long_castle[color] && board.pieces[&('f', '1')].is_none() &&
-                board.pieces[&('g', '1')].is_none() && !pos_under_attack(('f', '1'), board, color) &&
-                !pos_under_attack(('g', '1'), board, color)
+                board.pieces[&('g', '1')].is_none() && !pos_protected(('f', '1'), board, color) &&
+                !pos_protected(('g', '1'), board, color)
         }
     }
 }
 
 fn can_long_castle(board: &Board, color: &Color) -> bool {
     let check = if *color == Color::White {
-        pos_under_attack(('e', '1'), board, color)
+        pos_protected(('e', '1'), board, color)
     } else {
-        pos_under_attack(('e', '8'), board, color)
+        pos_protected(('e', '8'), board, color)
     };
     match color {
         Color::Black => {
             !check && board.able_to_short_caste[&color] && board.pieces[&('b', '8')].is_none() &&
                 board.pieces[&('c', '8')].is_none() && board.pieces[&('d', '8')].is_none() &&
-                !pos_under_attack(('b', '8'), board, color) && !pos_under_attack(('c', '8'), board, color) &&
-                !pos_under_attack(('d', '8'), board, color)
+                !pos_protected(('b', '8'), board, color) && !pos_protected(('c', '8'), board, color) &&
+                !pos_protected(('d', '8'), board, color)
         }
         Color::White => {
             !check && board.able_to_short_caste[&color] && board.pieces[&('b', '1')].is_none() &&
                 board.pieces[&('c', '1')].is_none() && board.pieces[&('d', '1')].is_none() &&
-                !pos_under_attack(('b', '1'), board, color) && !pos_under_attack(('c', '1'), board, color) &&
-                !pos_under_attack(('d', '1'), board, color)
+                !pos_protected(('b', '1'), board, color) && !pos_protected(('c', '1'), board, color) &&
+                !pos_protected(('d', '1'), board, color)
         }
     }
 }
 
-fn get_all_attacked_squares(board: &Board) -> HashMap<Color, Vec<Position>> {
-    let mut attacked_squares_white: Vec<Position> = Vec::new();
-    let mut attacked_squares_black: Vec<Position> = Vec::new();
+fn get_all_protected_squares(board: &Board) -> HashMap<Color, Vec<Position>> {
+    let mut protected_squares_white: Vec<Position> = Vec::new();
+    let mut protected_squares_black: Vec<Position> = Vec::new();
     for x in '1'..='8' {
         for y in 'a'..='h' {
             if board.pieces[&(x, y)].is_some() {
                 let piece = board.pieces[&(x, y)].as_ref().unwrap();
-                let possible_moves = possible_moves(&board, (x, y));
+                let possible_moves = possible_moves(&board, (x, y), true);
                 for m in possible_moves {
                     if piece.color == Color::White {
-                        attacked_squares_white.push(m.to);
+                        protected_squares_white.push(m.to);
                     } else {
-                        attacked_squares_black.push(m.to);
+                        protected_squares_black.push(m.to);
                     }
                 }
             }
@@ -245,19 +270,19 @@ fn get_all_attacked_squares(board: &Board) -> HashMap<Color, Vec<Position>> {
 
     HashMap::from(
         [
-            (Color::White, attacked_squares_white),
-            (Color::Black, attacked_squares_black)
+            (Color::White, protected_squares_white),
+            (Color::Black, protected_squares_black)
         ]
     )
 }
 
-fn pos_under_attack(pos: Position, board: &Board, color: &Color) -> bool {
-    let attacked_positions: &Vec<Position> = if *color == Color::White {
-        board.attacked_squares[&Color::White].as_ref()
+fn pos_protected(pos: Position, board: &Board, color: &Color) -> bool {
+    let protected_positions: &Vec<Position> = if *color == Color::White {
+        board.protected_squares[&Color::White].as_ref()
     } else {
-        board.attacked_squares[&Color::Black].as_ref()
+        board.protected_squares[&Color::Black].as_ref()
     };
-    for pos_attacked in attacked_positions {
+    for pos_attacked in protected_positions {
         if pos == *pos_attacked {
             return true;
         }
@@ -265,17 +290,17 @@ fn pos_under_attack(pos: Position, board: &Board, color: &Color) -> bool {
     false
 }
 
-fn possible_horizontal_vertical_moves(board: &Board, pos: Position, piece: &Piece) -> Vec<Move> {
+fn possible_horizontal_vertical_moves(board: &Board, pos: Position, piece: &Piece, get_protected: bool) -> Vec<Move> {
     let mut moves = Vec::new();
     // horizontal movement right
     for x in 1..=8 {
         let new_pos = padd(pos, (x, 0));
-        if !no_obstacles_in_one_move(new_pos, &board, &piece.color) {
+        if !no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) {
             break;
         }
         moves.push(
             Move {
-                move_type: MoveType::Straight,
+                move_type: MoveType::Normal,
                 from: pos,
                 to: new_pos,
             }
@@ -285,12 +310,12 @@ fn possible_horizontal_vertical_moves(board: &Board, pos: Position, piece: &Piec
     // horizontal movement left
     for x in (-8..=-1).rev() {
         let new_pos = padd(pos, (x, 0));
-        if !no_obstacles_in_one_move(new_pos, &board, &piece.color) {
+        if !no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) {
             break;
         }
         moves.push(
             Move {
-                move_type: MoveType::Straight,
+                move_type: MoveType::Normal,
                 from: pos,
                 to: new_pos,
             }
@@ -300,12 +325,12 @@ fn possible_horizontal_vertical_moves(board: &Board, pos: Position, piece: &Piec
     // vertical movement up
     for y in 1..=8 {
         let new_pos = padd(pos, (0, y));
-        if !no_obstacles_in_one_move(new_pos, &board, &piece.color) {
+        if !no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) {
             break;
         }
         moves.push(
             Move {
-                move_type: MoveType::Straight,
+                move_type: MoveType::Normal,
                 from: pos,
                 to: new_pos,
             }
@@ -315,12 +340,12 @@ fn possible_horizontal_vertical_moves(board: &Board, pos: Position, piece: &Piec
     // vertical movement down
     for y in (-8..=-1).rev() {
         let new_pos = padd(pos, (0, y));
-        if !no_obstacles_in_one_move(new_pos, &board, &piece.color) {
+        if !no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) {
             break;
         }
         moves.push(
             Move {
-                move_type: MoveType::Straight,
+                move_type: MoveType::Normal,
                 from: pos,
                 to: new_pos,
             }
@@ -330,18 +355,18 @@ fn possible_horizontal_vertical_moves(board: &Board, pos: Position, piece: &Piec
 }
 
 
-fn possible_diagonal_moves(board: &Board, pos: Position, piece: &Piece) -> Vec<Move> {
+fn possible_diagonal_moves(board: &Board, pos: Position, piece: &Piece, get_protected: bool) -> Vec<Move> {
     let mut moves = Vec::new();
 
     // right diagonal up
     for (x, y) in (1..=8).zip(1..=8) {
         let new_pos = padd(pos, (x, y));
-        if !no_obstacles_in_one_move(new_pos, &board, &piece.color) {
+        if !no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) {
             break;
         }
         moves.push(
             Move {
-                move_type: MoveType::Straight,
+                move_type: MoveType::Normal,
                 from: pos,
                 to: new_pos,
             }
@@ -351,12 +376,12 @@ fn possible_diagonal_moves(board: &Board, pos: Position, piece: &Piece) -> Vec<M
     // right diagonal down
     for (x, y) in (-8..=-1).rev().zip((-8..=-1).rev()) {
         let new_pos = padd(pos, (x, y));
-        if !no_obstacles_in_one_move(new_pos, &board, &piece.color) {
+        if !no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) {
             break;
         }
         moves.push(
             Move {
-                move_type: MoveType::Straight,
+                move_type: MoveType::Normal,
                 from: pos,
                 to: new_pos,
             }
@@ -367,12 +392,12 @@ fn possible_diagonal_moves(board: &Board, pos: Position, piece: &Piece) -> Vec<M
     // left diagonal up
     for (x, y) in (-8..=-1).rev().zip(1..=8) {
         let new_pos = padd(pos, (x, y));
-        if !no_obstacles_in_one_move(new_pos, &board, &piece.color) {
+        if !no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) {
             break;
         }
         moves.push(
             Move {
-                move_type: MoveType::Straight,
+                move_type: MoveType::Normal,
                 from: pos,
                 to: new_pos,
             }
@@ -382,12 +407,12 @@ fn possible_diagonal_moves(board: &Board, pos: Position, piece: &Piece) -> Vec<M
     // left diagonal down
     for (x, y) in (1..=8).zip((-8..=-1).rev()) {
         let new_pos = padd(pos, (x, y));
-        if !no_obstacles_in_one_move(new_pos, &board, &piece.color) {
+        if !no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) {
             break;
         }
         moves.push(
             Move {
-                move_type: MoveType::Straight,
+                move_type: MoveType::Normal,
                 from: pos,
                 to: new_pos,
             }
@@ -397,7 +422,7 @@ fn possible_diagonal_moves(board: &Board, pos: Position, piece: &Piece) -> Vec<M
 }
 
 
-fn possible_moves(board: &Board, pos: Position) -> Vec<Move> {
+fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move> {
     if board.pieces[&pos].is_none() {
         return Vec::new();
     }
@@ -410,11 +435,11 @@ fn possible_moves(board: &Board, pos: Position) -> Vec<Move> {
             for x in [-1, 0, 1] {
                 for y in [-1, 0, 1] {
                     let new_pos = padd(pos, (x, y));
-                    if no_obstacles_in_one_move(new_pos, &board, &piece.color) &&
-                        !pos_under_attack(new_pos, &board, &piece.color) {
+                    if no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) &&
+                        !pos_protected(new_pos, &board, &piece.color) {
                         moves.push(
                             Move {
-                                move_type: MoveType::Straight,
+                                move_type: MoveType::Normal,
                                 from: pos,
                                 to: new_pos,
                             }
@@ -444,17 +469,17 @@ fn possible_moves(board: &Board, pos: Position) -> Vec<Move> {
         }
 
         Name::Queen => {
-            moves.append(possible_horizontal_vertical_moves(&board, pos, &piece).as_mut());
+            moves.append(possible_horizontal_vertical_moves(&board, pos, &piece, get_protected).as_mut());
 
-            moves.append(possible_diagonal_moves(&board, pos, &piece).as_mut());
+            moves.append(possible_diagonal_moves(&board, pos, &piece, get_protected).as_mut());
         }
 
         Name::Rook => {
-            moves.append(possible_horizontal_vertical_moves(&board, pos, &piece).as_mut());
+            moves.append(possible_horizontal_vertical_moves(&board, pos, &piece, get_protected).as_mut());
         }
 
         Name::Bishop => {
-            moves.append(possible_diagonal_moves(&board, pos, &piece).as_mut());
+            moves.append(possible_diagonal_moves(&board, pos, &piece, get_protected).as_mut());
         }
 
         Name::Knight => {
@@ -471,7 +496,7 @@ fn possible_moves(board: &Board, pos: Position) -> Vec<Move> {
 
             for pos_int in rel_pos_to_iter {
                 let new_pos = padd(pos, pos_int);
-                if no_obstacles_in_one_move(new_pos, &board, &piece.color) {
+                if no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) {
                     moves.push(
                         Move {
                             move_type: MoveType::Jump,
@@ -494,12 +519,12 @@ fn possible_moves(board: &Board, pos: Position) -> Vec<Move> {
             // Normal moves
             for y in rel_pos_to_iter {
                 let new_pos = padd(pos, (0, direction * y));
-                if !no_obstacles_in_one_move(new_pos, &board, &piece.color) {
+                if !no_obstacles_in_one_move(new_pos, &board, &piece.color, get_protected) {
                     break;
                 }
                 moves.push(
                     Move {
-                        move_type: MoveType::Straight,
+                        move_type: MoveType::Normal,
                         from: pos,
                         to: new_pos,
                     }
@@ -513,7 +538,7 @@ fn possible_moves(board: &Board, pos: Position) -> Vec<Move> {
                     Some(Some(other_piece)) => {
                         if other_piece.color != piece.color {
                             moves.push(Move {
-                                move_type: MoveType::Straight,
+                                move_type: MoveType::Normal,
                                 from: pos,
                                 to: new_pos,
                             })
@@ -585,5 +610,6 @@ impl fmt::Display for Board {
 fn main() {
     let board = Board::new();
     println!("{}", board);
-    println!("{:?}", possible_moves(&board, ('g', '1')));
+    println!("{:?}", possible_moves(&board, ('g', '1'), true));
+    println!("{:?}", possible_moves(&board, ('g', '1'), false));
 }
