@@ -76,7 +76,7 @@ struct Board {
     captured: HashMap<Color, Vec<Piece>>,
     history: Vec<(Piece, Move)>,
     able_to_long_castle: HashMap<Color, bool>,
-    able_to_short_caste: HashMap<Color, bool>,
+    able_to_short_castle: HashMap<Color, bool>,
     protected_squares: HashMap<Color, Vec<Position>>,
     pieces_attacking_king: HashMap<Color, Vec<(Piece, Vec<Position>)>>,
 }
@@ -190,7 +190,7 @@ impl Board {
             protected_squares,
             pieces_attacking_king,
             able_to_long_castle: able_to_castle.clone(),
-            able_to_short_caste: able_to_castle,
+            able_to_short_castle: able_to_castle,
         }
     }
 }
@@ -244,13 +244,13 @@ fn can_short_castle(board: &Board, color: &Color) -> bool {
 fn can_long_castle(board: &Board, color: &Color) -> bool {
     match color {
         Color::Black => {
-            !check(board, color) && board.able_to_short_caste[&color] && board.pieces[&('b', '8')].is_none() &&
+            !check(board, color) && board.able_to_short_castle[&color] && board.pieces[&('b', '8')].is_none() &&
                 board.pieces[&('c', '8')].is_none() && board.pieces[&('d', '8')].is_none() &&
                 !pos_protected(('b', '8'), board, color) && !pos_protected(('c', '8'), board, color) &&
                 !pos_protected(('d', '8'), board, color)
         }
         Color::White => {
-            !check(board, color) && board.able_to_short_caste[&color] && board.pieces[&('b', '1')].is_none() &&
+            !check(board, color) && board.able_to_short_castle[&color] && board.pieces[&('b', '1')].is_none() &&
                 board.pieces[&('c', '1')].is_none() && board.pieces[&('d', '1')].is_none() &&
                 !pos_protected(('b', '1'), board, color) && !pos_protected(('c', '1'), board, color) &&
                 !pos_protected(('d', '1'), board, color)
@@ -684,7 +684,8 @@ fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move
     }
 
 
-    if check(board, &piece.color) {
+    if check(board, &piece.color) && piece.name != Name::King {
+        // filter out moves that do not protect the king. Only for pieces other than the king.
         debug_assert_eq!(1, board.pieces_attacking_king[&piece.color].len(), "More than one piece attacking the king");
         let (_, pos) = board.pieces_attacking_king[&piece.color][0].clone();
         moves = moves.drain(..).filter(|x| pos.contains(&x.to)).collect();
