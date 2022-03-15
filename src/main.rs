@@ -71,8 +71,9 @@ struct Move {
 
 
 #[derive(Debug, Clone)]
-struct Board {
-    pieces: HashMap<Position, Option<Piece>>,
+struct Game {
+    turn: Color,
+    board: HashMap<Position, Option<Piece>>,
     captured: HashMap<Color, Vec<Piece>>,
     history: Vec<(Piece, Move)>,
     able_to_long_castle: HashMap<Color, bool>,
@@ -95,8 +96,8 @@ impl Piece {
     }
 }
 
-impl Board {
-    fn new() -> Board {
+impl Game {
+    fn new() -> Game {
         // White pieces
         let pawn_w = Piece::new(Name::Pawn, Color::White);
 
@@ -123,35 +124,35 @@ impl Board {
 
         let king_b = Piece::new(Name::King, Color::Black);
 
-        let mut pieces: HashMap<Position, Option<Piece>> = HashMap::new();
+        let mut board: HashMap<Position, Option<Piece>> = HashMap::new();
         for x in 'a'..='h' {
             for y in '1'..='8' {
                 if y == '2' {
-                    pieces.insert((x.clone(), y), Some(pawn_w.clone()));
+                    board.insert((x.clone(), y), Some(pawn_w.clone()));
                 } else if y == '7' {
-                    pieces.insert((x.clone(), y), Some(pawn_b.clone()));
+                    board.insert((x.clone(), y), Some(pawn_b.clone()));
                 } else if y == '1' && (x == 'a' || x == 'h') {
-                    pieces.insert((x.clone(), y), Some(rook_w.clone()));
+                    board.insert((x.clone(), y), Some(rook_w.clone()));
                 } else if y == '8' && (x == 'a' || x == 'h') {
-                    pieces.insert((x.clone(), y), Some(rook_b.clone()));
+                    board.insert((x.clone(), y), Some(rook_b.clone()));
                 } else if y == '1' && (x == 'b' || x == 'g') {
-                    pieces.insert((x.clone(), y), Some(knight_w.clone()));
+                    board.insert((x.clone(), y), Some(knight_w.clone()));
                 } else if y == '8' && (x == 'b' || x == 'g') {
-                    pieces.insert((x.clone(), y), Some(knight_b.clone()));
+                    board.insert((x.clone(), y), Some(knight_b.clone()));
                 } else if y == '1' && (x == 'c' || x == 'f') {
-                    pieces.insert((x.clone(), y), Some(bishop_w.clone()));
+                    board.insert((x.clone(), y), Some(bishop_w.clone()));
                 } else if y == '8' && (x == 'c' || x == 'f') {
-                    pieces.insert((x.clone(), y), Some(bishop_b.clone()));
+                    board.insert((x.clone(), y), Some(bishop_b.clone()));
                 } else if y == '1' && x == 'd' {
-                    pieces.insert((x.clone(), y), Some(queen_w.clone()));
+                    board.insert((x.clone(), y), Some(queen_w.clone()));
                 } else if y == '8' && x == 'd' {
-                    pieces.insert((x.clone(), y), Some(queen_b.clone()));
+                    board.insert((x.clone(), y), Some(queen_b.clone()));
                 } else if y == '1' && x == 'e' {
-                    pieces.insert((x.clone(), y), Some(king_w.clone()));
+                    board.insert((x.clone(), y), Some(king_w.clone()));
                 } else if y == '8' && x == 'e' {
-                    pieces.insert((x.clone(), y), Some(king_b.clone()));
+                    board.insert((x.clone(), y), Some(king_b.clone()));
                 } else {
-                    pieces.insert((x.clone(), y), None);
+                    board.insert((x.clone(), y), None);
                 }
             }
         }
@@ -183,8 +184,9 @@ impl Board {
             ]
         );
 
-        Board {
-            pieces,
+        Game {
+            turn: Color::White,
+            board,
             captured,
             history,
             protected_squares,
@@ -206,8 +208,8 @@ fn p2num(pos: Position) -> (u8, u8) {
     (pos.0 as u8, pos.1 as u8)
 }
 
-fn in_board_boundary(pos: Position, board: &Board) -> bool {
-    match board.pieces.get(&pos) {
+fn in_board_boundary(pos: Position, board: &Game) -> bool {
+    match board.board.get(&pos) {
         // out of boundary
         None => { false }
         // in boundary
@@ -215,8 +217,8 @@ fn in_board_boundary(pos: Position, board: &Board) -> bool {
     }
 }
 
-fn no_obstacles_in_one_move(pos: Position, board: &Board, color: &Color, get_protected: bool) -> bool {
-    match board.pieces.get(&pos) {
+fn no_obstacles_in_one_move(pos: Position, board: &Game, color: &Color, get_protected: bool) -> bool {
+    match board.board.get(&pos) {
         // out of boundary
         None => { false }
         // no piece there: good
@@ -226,45 +228,45 @@ fn no_obstacles_in_one_move(pos: Position, board: &Board, color: &Color, get_pro
     }
 }
 
-fn can_short_castle(board: &Board, color: &Color) -> bool {
+fn can_short_castle(board: &Game, color: &Color) -> bool {
     match color {
         Color::Black => {
-            !check(board, color) && board.able_to_long_castle[color] && board.pieces[&('f', '8')].is_none() &&
-                board.pieces[&('g', '8')].is_none() && !pos_protected(('f', '8'), board, color) &&
+            !check(board, color) && board.able_to_long_castle[color] && board.board[&('f', '8')].is_none() &&
+                board.board[&('g', '8')].is_none() && !pos_protected(('f', '8'), board, color) &&
                 !pos_protected(('g', '8'), board, color)
         }
         Color::White => {
-            !check(board, color) && board.able_to_long_castle[color] && board.pieces[&('f', '1')].is_none() &&
-                board.pieces[&('g', '1')].is_none() && !pos_protected(('f', '1'), board, color) &&
+            !check(board, color) && board.able_to_long_castle[color] && board.board[&('f', '1')].is_none() &&
+                board.board[&('g', '1')].is_none() && !pos_protected(('f', '1'), board, color) &&
                 !pos_protected(('g', '1'), board, color)
         }
     }
 }
 
-fn can_long_castle(board: &Board, color: &Color) -> bool {
+fn can_long_castle(board: &Game, color: &Color) -> bool {
     match color {
         Color::Black => {
-            !check(board, color) && board.able_to_short_castle[&color] && board.pieces[&('b', '8')].is_none() &&
-                board.pieces[&('c', '8')].is_none() && board.pieces[&('d', '8')].is_none() &&
+            !check(board, color) && board.able_to_short_castle[&color] && board.board[&('b', '8')].is_none() &&
+                board.board[&('c', '8')].is_none() && board.board[&('d', '8')].is_none() &&
                 !pos_protected(('b', '8'), board, color) && !pos_protected(('c', '8'), board, color) &&
                 !pos_protected(('d', '8'), board, color)
         }
         Color::White => {
-            !check(board, color) && board.able_to_short_castle[&color] && board.pieces[&('b', '1')].is_none() &&
-                board.pieces[&('c', '1')].is_none() && board.pieces[&('d', '1')].is_none() &&
+            !check(board, color) && board.able_to_short_castle[&color] && board.board[&('b', '1')].is_none() &&
+                board.board[&('c', '1')].is_none() && board.board[&('d', '1')].is_none() &&
                 !pos_protected(('b', '1'), board, color) && !pos_protected(('c', '1'), board, color) &&
                 !pos_protected(('d', '1'), board, color)
         }
     }
 }
 
-fn get_all_protected_squares(board: &Board) -> HashMap<Color, Vec<Position>> {
+fn get_all_protected_squares(board: &Game) -> HashMap<Color, Vec<Position>> {
     let mut protected_squares_white: Vec<Position> = Vec::new();
     let mut protected_squares_black: Vec<Position> = Vec::new();
     for x in '1'..='8' {
         for y in 'a'..='h' {
-            if board.pieces[&(x, y)].is_some() {
-                let piece = board.pieces[&(x, y)].as_ref().unwrap();
+            if board.board[&(x, y)].is_some() {
+                let piece = board.board[&(x, y)].as_ref().unwrap();
                 let possible_moves = possible_moves(&board, (x, y), true);
                 for m in possible_moves {
                     if piece.color == Color::White {
@@ -285,7 +287,7 @@ fn get_all_protected_squares(board: &Board) -> HashMap<Color, Vec<Position>> {
     )
 }
 
-fn pos_protected(pos: Position, board: &Board, color: &Color) -> bool {
+fn pos_protected(pos: Position, board: &Game, color: &Color) -> bool {
     let protected_positions: &Vec<Position> = if *color == Color::White {
         board.protected_squares[&Color::White].as_ref()
     } else {
@@ -299,7 +301,7 @@ fn pos_protected(pos: Position, board: &Board, color: &Color) -> bool {
     false
 }
 
-fn possible_horizontal_vertical_moves(board: &Board, pos: Position, piece: &Piece, get_protected: bool) -> Vec<Move> {
+fn possible_horizontal_vertical_moves(board: &Game, pos: Position, piece: &Piece, get_protected: bool) -> Vec<Move> {
     let mut moves = Vec::new();
 
     // horizontal movement right
@@ -317,7 +319,7 @@ fn possible_horizontal_vertical_moves(board: &Board, pos: Position, piece: &Piec
                 from: pos,
                 to: new_pos,
                 traversed_squares: traversed_squares.clone(),
-                captured_piece: board.pieces[&new_pos].clone(),
+                captured_piece: board.board[&new_pos].clone(),
             }
         )
     }
@@ -337,7 +339,7 @@ fn possible_horizontal_vertical_moves(board: &Board, pos: Position, piece: &Piec
                 from: pos,
                 to: new_pos,
                 traversed_squares: traversed_squares.clone(),
-                captured_piece: board.pieces[&new_pos].clone(),
+                captured_piece: board.board[&new_pos].clone(),
             }
         )
     }
@@ -357,7 +359,7 @@ fn possible_horizontal_vertical_moves(board: &Board, pos: Position, piece: &Piec
                 from: pos,
                 to: new_pos,
                 traversed_squares: traversed_squares.clone(),
-                captured_piece: board.pieces[&new_pos].clone(),
+                captured_piece: board.board[&new_pos].clone(),
             }
         )
     }
@@ -377,7 +379,7 @@ fn possible_horizontal_vertical_moves(board: &Board, pos: Position, piece: &Piec
                 from: pos,
                 to: new_pos,
                 traversed_squares: traversed_squares.clone(),
-                captured_piece: board.pieces[&new_pos].clone(),
+                captured_piece: board.board[&new_pos].clone(),
             }
         )
     }
@@ -385,7 +387,7 @@ fn possible_horizontal_vertical_moves(board: &Board, pos: Position, piece: &Piec
 }
 
 
-fn possible_diagonal_moves(board: &Board, pos: Position, piece: &Piece, get_protected: bool) -> Vec<Move> {
+fn possible_diagonal_moves(board: &Game, pos: Position, piece: &Piece, get_protected: bool) -> Vec<Move> {
     let mut moves = Vec::new();
 
     // right diagonal up
@@ -403,7 +405,7 @@ fn possible_diagonal_moves(board: &Board, pos: Position, piece: &Piece, get_prot
                 from: pos,
                 to: new_pos,
                 traversed_squares: traversed_squares.clone(),
-                captured_piece: board.pieces[&new_pos].clone(),
+                captured_piece: board.board[&new_pos].clone(),
             }
         )
     }
@@ -423,7 +425,7 @@ fn possible_diagonal_moves(board: &Board, pos: Position, piece: &Piece, get_prot
                 from: pos,
                 to: new_pos,
                 traversed_squares: traversed_squares.clone(),
-                captured_piece: board.pieces[&new_pos].clone(),
+                captured_piece: board.board[&new_pos].clone(),
             }
         )
     }
@@ -444,7 +446,7 @@ fn possible_diagonal_moves(board: &Board, pos: Position, piece: &Piece, get_prot
                 from: pos,
                 to: new_pos,
                 traversed_squares: traversed_squares.clone(),
-                captured_piece: board.pieces[&new_pos].clone(),
+                captured_piece: board.board[&new_pos].clone(),
             }
         )
     }
@@ -464,7 +466,7 @@ fn possible_diagonal_moves(board: &Board, pos: Position, piece: &Piece, get_prot
                 from: pos,
                 to: new_pos,
                 traversed_squares: traversed_squares.clone(),
-                captured_piece: board.pieces[&new_pos].clone(),
+                captured_piece: board.board[&new_pos].clone(),
             }
         )
     }
@@ -472,7 +474,7 @@ fn possible_diagonal_moves(board: &Board, pos: Position, piece: &Piece, get_prot
 }
 
 
-fn pieces_attacking_king(board: &Board) -> HashMap<Color, Vec<(Piece, Vec<Position>)>> {
+fn pieces_attacking_king(board: &Game) -> HashMap<Color, Vec<(Piece, Vec<Position>)>> {
     let mut pieces_white: Vec<(Piece, Vec<Position>)> = Vec::new();
     let mut pieces_black: Vec<(Piece, Vec<Position>)> = Vec::new();
     for x in 'a'..='h' {
@@ -500,17 +502,17 @@ fn pieces_attacking_king(board: &Board) -> HashMap<Color, Vec<(Piece, Vec<Positi
     )
 }
 
-fn check(board: &Board, color: &Color) -> bool {
+fn check(board: &Game, color: &Color) -> bool {
     !board.pieces_attacking_king[color].is_empty()
 }
 
-fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move> {
+fn possible_moves(board: &Game, pos: Position, get_protected: bool) -> Vec<Move> {
     // todo what todo with get protected and check
-    if board.pieces[&pos].is_none() {
+    if board.board[&pos].is_none() {
         return Vec::new();
     }
 
-    let piece = board.pieces[&pos].as_ref().unwrap();
+    let piece = board.board[&pos].as_ref().unwrap();
 
     if check(board, &piece.color) && board.pieces_attacking_king[&piece.color].len() > 1 && piece.name != Name::King {
         // double check: only king can move
@@ -534,7 +536,7 @@ fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move
                                 from: pos,
                                 to: new_pos,
                                 traversed_squares: vec![pos, new_pos],
-                                captured_piece: board.pieces[&new_pos].clone(),
+                                captured_piece: board.board[&new_pos].clone(),
                             }
                         )
                     }
@@ -549,7 +551,7 @@ fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move
                         from: pos,
                         to: padd(pos, (-2, 0)),
                         traversed_squares: vec![pos, padd(pos, (-1, 0)), padd(pos, (-2, 0))],
-                        captured_piece: board.pieces[&padd(pos, (-2, 0))].clone(),
+                        captured_piece: board.board[&padd(pos, (-2, 0))].clone(),
                     }
                 )
             }
@@ -561,7 +563,7 @@ fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move
                         from: pos,
                         to: padd(pos, (2, 0)),
                         traversed_squares: vec![pos, padd(pos, (1, 0)), padd(pos, (2, 0))],
-                        captured_piece: board.pieces[&padd(pos, (2, 0))].clone(),
+                        captured_piece: board.board[&padd(pos, (2, 0))].clone(),
                     }
                 )
             }
@@ -603,7 +605,7 @@ fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move
                             from: pos,
                             to: new_pos,
                             traversed_squares: vec![pos, new_pos],
-                            captured_piece: board.pieces[&new_pos].clone(),
+                            captured_piece: board.board[&new_pos].clone(),
                         }
                     )
                 }
@@ -631,7 +633,7 @@ fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move
                         from: pos,
                         to: new_pos,
                         traversed_squares: vec![pos, new_pos],
-                        captured_piece: board.pieces[&new_pos].clone(),
+                        captured_piece: board.board[&new_pos].clone(),
                     }
                 )
             }
@@ -639,7 +641,7 @@ fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move
             // check if able to capture a piece
             for new_pos_int in [(1, direction), (-1, direction)] {
                 let new_pos = padd(pos, new_pos_int);
-                match board.pieces.get(&new_pos) {
+                match board.board.get(&new_pos) {
                     Some(Some(other_piece)) => {
                         if other_piece.color != piece.color {
                             moves.push(Move {
@@ -648,7 +650,7 @@ fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move
                                 from: pos,
                                 to: new_pos,
                                 traversed_squares: vec![pos, new_pos],
-                                captured_piece: board.pieces[&new_pos].clone(),
+                                captured_piece: board.board[&new_pos].clone(),
                             })
                         }
                     }
@@ -675,7 +677,7 @@ fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move
                             from: pos,
                             to: new_pos,
                             traversed_squares: vec![pos, new_pos],
-                            captured_piece: board.pieces[&new_pos].clone(),
+                            captured_piece: board.board[&new_pos].clone(),
                         }
                     )
                 }
@@ -694,7 +696,7 @@ fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move
     moves
 }
 
-impl fmt::Display for Board {
+impl fmt::Display for Game {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut res = String::new();
         for _ in 1..=8 {
@@ -705,7 +707,7 @@ impl fmt::Display for Board {
         for y in ('1'..='8').rev() {
             res.push_str(format!("{}|\t", y).as_str());
             for x in 'a'..='h' {
-                match &self.pieces[&(x, y)] {
+                match &self.board[&(x, y)] {
                     None => res.push_str("  |\t"),
                     Some(piece) => {
                         res.push_str(format!("{}|\t", piece).as_str())
@@ -728,7 +730,7 @@ impl fmt::Display for Board {
 }
 
 fn main() {
-    let board = Board::new();
+    let board = Game::new();
     println!("{}", board);
     println!("{:?}", possible_moves(&board, ('g', '1'), true));
     println!("{:?}", possible_moves(&board, ('g', '1'), false));
