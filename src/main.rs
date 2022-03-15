@@ -69,13 +69,12 @@ struct Move {
     captured_piece: Option<Piece>,
 }
 
-
 #[derive(Debug, Clone)]
 struct Game {
     turn: Color,
     board: HashMap<Position, Option<Piece>>,
     captured: HashMap<Color, Vec<Piece>>,
-    history: Vec<(Piece, Move)>,
+    history: Vec<Move>,
     able_to_long_castle: HashMap<Color, bool>,
     able_to_short_castle: HashMap<Color, bool>,
     protected_squares: HashMap<Color, Vec<Position>>,
@@ -157,7 +156,7 @@ impl Game {
             }
         }
         let captured: HashMap<Color, Vec<Piece>> = HashMap::new();
-        let history: Vec<(Piece, Move)> = Vec::new();
+        let history: Vec<Move> = Vec::new();
         let able_to_castle = HashMap::from([(Color::White, true), (Color::Black, true)]);
         let mut protected_squares_white: Vec<Position> = Vec::new();
         let mut protected_squares_black: Vec<Position> = Vec::new();
@@ -660,9 +659,9 @@ fn possible_moves(board: &Game, pos: Position, get_protected: bool) -> Vec<Move>
 
             // Enpassant
             if !board.history.is_empty() {
-                let (last_move_piece, last_move) = board.history.last().unwrap();
+                let last_move = board.history.last().unwrap();
 
-                if last_move_piece.name == Name::Pawn &&
+                if last_move.piece.name == Name::Pawn &&
                     (last_move.from.1 as i8 - last_move.to.1 as i8).abs() == 2 &&
                     (last_move.to == padd(pos, (1, 0)) || last_move.to == padd(pos, (-1, 0))) {
                     let new_pos = if last_move.to == padd(pos, (1, 0)) {
@@ -694,6 +693,12 @@ fn possible_moves(board: &Game, pos: Position, get_protected: bool) -> Vec<Move>
     }
 
     moves
+}
+
+impl fmt::Display for Move {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}: {:?} -> {:?}", self.piece.name, self.from, self.to)
+    }
 }
 
 impl fmt::Display for Game {
@@ -732,6 +737,12 @@ impl fmt::Display for Game {
 fn main() {
     let board = Game::new();
     println!("{}", board);
-    println!("{:?}", possible_moves(&board, ('g', '1'), true));
-    println!("{:?}", possible_moves(&board, ('g', '1'), false));
+    println!("Protected:");
+    for mv in possible_moves(&board, ('g', '1'), true) {
+        println!("{}", mv);
+    }
+    println!("Moves:");
+    for mv in possible_moves(&board, ('g', '1'), false) {
+        println!("{}", mv);
+    }
 }
