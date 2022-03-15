@@ -1,6 +1,7 @@
 use std::collections::HashMap;
-use std::fmt;
+use std::{fmt, io};
 use std::fmt::{Formatter};
+use std::io::BufRead;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Color {
@@ -734,6 +735,22 @@ impl fmt::Display for Game {
     }
 }
 
+fn headless_chess() {
+
+    println!("Hello to rusty chess. Let's start a game:\n");
+    let mut game = Game::new();
+    let stdin = io::stdin();
+    loop{
+        println!("{:?}s turn. Please input a move (e.g. \"e2 e4\" moves piece on e to e4)", game);
+        let input_move = stdin.lock().lines().next().unwrap().unwrap();
+        // let split = input_move.split(" ").collect();
+        // let possible_moves = possible_moves(&game, from, false);
+    }
+
+
+
+}
+
 fn main() {
     let board = Game::new();
     println!("{}", board);
@@ -745,4 +762,5 @@ fn main() {
     for mv in possible_moves(&board, ('g', '1'), false) {
         println!("{}", mv);
     }
+    headless_chess();
 }
