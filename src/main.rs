@@ -227,19 +227,14 @@ fn no_obstacles_in_one_move(pos: Position, board: &Board, color: &Color, get_pro
 }
 
 fn can_short_castle(board: &Board, color: &Color) -> bool {
-    let check = if *color == Color::White {
-        pos_protected(('e', '1'), board, color)
-    } else {
-        pos_protected(('e', '8'), board, color)
-    };
     match color {
         Color::Black => {
-            !check && board.able_to_long_castle[color] && board.pieces[&('f', '8')].is_none() &&
+            !check(board, color) && board.able_to_long_castle[color] && board.pieces[&('f', '8')].is_none() &&
                 board.pieces[&('g', '8')].is_none() && !pos_protected(('f', '8'), board, color) &&
                 !pos_protected(('g', '8'), board, color)
         }
         Color::White => {
-            !check && board.able_to_long_castle[color] && board.pieces[&('f', '1')].is_none() &&
+            !check(board, color) && board.able_to_long_castle[color] && board.pieces[&('f', '1')].is_none() &&
                 board.pieces[&('g', '1')].is_none() && !pos_protected(('f', '1'), board, color) &&
                 !pos_protected(('g', '1'), board, color)
         }
@@ -247,20 +242,15 @@ fn can_short_castle(board: &Board, color: &Color) -> bool {
 }
 
 fn can_long_castle(board: &Board, color: &Color) -> bool {
-    let check = if *color == Color::White {
-        pos_protected(('e', '1'), board, color)
-    } else {
-        pos_protected(('e', '8'), board, color)
-    };
     match color {
         Color::Black => {
-            !check && board.able_to_short_caste[&color] && board.pieces[&('b', '8')].is_none() &&
+            !check(board, color) && board.able_to_short_caste[&color] && board.pieces[&('b', '8')].is_none() &&
                 board.pieces[&('c', '8')].is_none() && board.pieces[&('d', '8')].is_none() &&
                 !pos_protected(('b', '8'), board, color) && !pos_protected(('c', '8'), board, color) &&
                 !pos_protected(('d', '8'), board, color)
         }
         Color::White => {
-            !check && board.able_to_short_caste[&color] && board.pieces[&('b', '1')].is_none() &&
+            !check(board, color) && board.able_to_short_caste[&color] && board.pieces[&('b', '1')].is_none() &&
                 board.pieces[&('c', '1')].is_none() && board.pieces[&('d', '1')].is_none() &&
                 !pos_protected(('b', '1'), board, color) && !pos_protected(('c', '1'), board, color) &&
                 !pos_protected(('d', '1'), board, color)
@@ -491,7 +481,7 @@ fn pieces_attacking_king(board: &Board) -> HashMap<Color, Vec<(Piece, Vec<Positi
             for mv in moves {
                 if mv.captured_piece.is_some() {
                     if mv.captured_piece.unwrap().name == Name::King {
-                        if mv.piece.color == Color::White {
+                        if mv.piece.color.invert() == Color::White {
                             pieces_white.push((mv.piece, mv.traversed_squares));
                         } else {
                             pieces_black.push((mv.piece, mv.traversed_squares));
@@ -510,18 +500,26 @@ fn pieces_attacking_king(board: &Board) -> HashMap<Color, Vec<(Piece, Vec<Positi
     )
 }
 
-fn check(board: &Board, color: &Color)->bool{
+fn check(board: &Board, color: &Color) -> bool {
     !board.pieces_attacking_king[color].is_empty()
 }
 
 fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move> {
+    // todo what todo with get protected and check
     if board.pieces[&pos].is_none() {
+        return Vec::new();
+    }
+
+    let piece = board.pieces[&pos].as_ref().unwrap();
+
+    if check(board, &piece.color) && board.pieces_attacking_king[&piece.color].len() > 1 && piece.name != Name::King {
+        // double check: only king can move
         return Vec::new();
     }
 
     let mut moves: Vec<Move> = Vec::new();
 
-    let piece = board.pieces[&pos].as_ref().unwrap();
+
     match piece.name {
         Name::King => {
             for x in [-1, 0, 1] {
@@ -684,6 +682,14 @@ fn possible_moves(board: &Board, pos: Position, get_protected: bool) -> Vec<Move
             }
         }
     }
+
+
+    if check(board, &piece.color) {
+        debug_assert_eq!(1, board.pieces_attacking_king[&piece.color].len(), "More than one piece attacking the king");
+        let (_, pos) = board.pieces_attacking_king[&piece.color][0].clone();
+        moves = moves.drain(..).filter(|x| pos.contains(&x.to)).collect();
+    }
+
     moves
 }
 
