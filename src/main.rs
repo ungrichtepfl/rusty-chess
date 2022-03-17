@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::{fmt, io};
 use std::fmt::{Formatter};
 use std::io::BufRead;
+use std::sync::atomic::AtomicBool;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Color {
@@ -735,20 +736,107 @@ impl fmt::Display for Game {
     }
 }
 
-fn headless_chess() {
+fn is_valid_move(game: &Game, from: Position, to: Position) -> bool {
+    match game.board.get(&from) {
+        Some(Some(piece)) => game.turn == piece.color && possible_moves(game, from, false).into_iter().map(|x| x.to).collect::<Vec<Position>>().contains(&to),
+        _ => false
+    }
+}
 
+impl Move {
+    fn construct_if_valid(game: &Game, from: Position, to: Position) -> Option<Move> {
+        match game.board.get(&from) {
+            Some(Some(piece)) => {
+                if game.turn == piece.color {
+                    let matching_moves: Vec<Move> = possible_moves(game, from, false).drain(..).filter(|x| x.to == to).collect();
+                    if matching_moves.is_empty() {
+                        None
+                    } else {
+                        debug_assert_eq!(1, matching_moves.len());
+                        Some(matching_moves[0].clone())
+                    }
+                } else {
+                    None
+                }
+            }
+            _ => None
+        }
+    }
+}
+
+fn move_piece(game: &mut Game, from: Position, to: Position) -> bool {
+    match Move::construct_if_valid(game, from, to) {
+        Some(mv) => {
+            game.turn = game.turn.invert();
+            // update position
+            game.board.insert(from, None);
+            game.board.insert(to, Some(mv.piece.clone()));
+            if mv.move_type == MoveType::LongCastle {
+                if mv.piece.color == Color::White {
+                    game.board.insert(('a', '1'), None);
+                    game.board.insert(('d', '1'), Some(Piece::new(Name::Rook, Color::White)));
+                } else {
+                    game.board.insert(('a', '8'), None);
+                    game.board.insert(('d', '8'), Some(Piece::new(Name::Rook, Color::Black)));
+                }
+            }
+            if mv.move_type == MoveType::ShortCastle {
+                if mv.piece.color == Color::White {
+                    game.board.insert(('h', '1'), None);
+                    game.board.insert(('f', '1'), Some(Piece::new(Name::Rook, Color::White)));
+                } else {
+                    game.board.insert(('h', '8'), None);
+                    game.board.insert(('f', '8'), Some(Piece::new(Name::Rook, Color::Black)));
+                }
+            }
+            game.pieces_attacking_king = pieces_attacking_king(game);
+            game.protected_squares = get_all_protected_squares(game);
+            if mv.captured_piece.is_some() {
+                game.captured.entry(
+                    mv.piece.color.clone()).or_insert(
+                    Vec::new()).push(mv.captured_piece.clone().unwrap());
+            }
+            if (mv.piece.name == Name::King || mv.piece.name == Name::Rook)
+                && (game.able_to_long_castle[&mv.piece.color] || game.able_to_short_castle[&mv.piece.color]) {
+                if mv.piece.name == Name::King {
+                    game.able_to_short_castle.insert(mv.piece.color.clone(), false);
+                    game.able_to_long_castle.insert(mv.piece.color.clone(), false);
+                } else {
+                    let long_caste_pos: Position = if mv.piece.color == Color::White {
+                        ('a', '1')
+                    } else {
+                        ('a', '8')
+                    };
+                    let short_caste_pos: Position = if mv.piece.color == Color::White {
+                        ('h', '1')
+                    } else {
+                        ('h', '8')
+                    };
+                    if mv.from == long_caste_pos {
+                        game.able_to_long_castle.insert(mv.piece.color.clone(), false);
+                    }
+                    if mv.from == short_caste_pos {
+                        game.able_to_short_castle.insert(mv.piece.color.clone(), false);
+                    }
+                }
+            }
+            game.history.push(mv);
+            true
+        }
+        None => false
+    }
+}
+
+fn headless_chess() {
     println!("Hello to rusty chess. Let's start a game:\n");
     let mut game = Game::new();
     let stdin = io::stdin();
-    loop{
+    loop {
         println!("{:?}s turn. Please input a move (e.g. \"e2 e4\" moves piece on e to e4)", game);
         let input_move = stdin.lock().lines().next().unwrap().unwrap();
         // let split = input_move.split(" ").collect();
         // let possible_moves = possible_moves(&game, from, false);
     }
-
-
-
 }
 
 fn main() {
