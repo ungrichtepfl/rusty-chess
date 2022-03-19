@@ -236,13 +236,13 @@ fn can_short_castle(game: &Game, color: &Color) -> bool {
     match color {
         Color::Black => {
             !check(game, color) && game.able_to_long_castle[color] && game.board[&('f', '8')].is_none() &&
-                game.board[&('g', '8')].is_none() && !pos_protected(('f', '8'), game, color) &&
-                !pos_protected(('g', '8'), game, color)
+                game.board[&('g', '8')].is_none() && !pos_protected(('f', '8'), game, &color.invert()) &&
+                !pos_protected(('g', '8'), game, &color.invert())
         }
         Color::White => {
             !check(game, color) && game.able_to_long_castle[color] && game.board[&('f', '1')].is_none() &&
-                game.board[&('g', '1')].is_none() && !pos_protected(('f', '1'), game, color) &&
-                !pos_protected(('g', '1'), game, color)
+                game.board[&('g', '1')].is_none() && !pos_protected(('f', '1'), game, &color.invert()) &&
+                !pos_protected(('g', '1'), game, &color.invert())
         }
     }
 }
@@ -252,14 +252,16 @@ fn can_long_castle(game: &Game, color: &Color) -> bool {
         Color::Black => {
             !check(game, color) && game.able_to_short_castle[&color] && game.board[&('b', '8')].is_none() &&
                 game.board[&('c', '8')].is_none() && game.board[&('d', '8')].is_none() &&
-                !pos_protected(('b', '8'), game, color) && !pos_protected(('c', '8'), game, color) &&
-                !pos_protected(('d', '8'), game, color)
+                !pos_protected(('b', '8'), game, &color.invert()) &&
+                !pos_protected(('c', '8'), game, &color.invert()) &&
+                !pos_protected(('d', '8'), game, &color.invert())
         }
         Color::White => {
             !check(game, color) && game.able_to_short_castle[&color] && game.board[&('b', '1')].is_none() &&
                 game.board[&('c', '1')].is_none() && game.board[&('d', '1')].is_none() &&
-                !pos_protected(('b', '1'), game, color) && !pos_protected(('c', '1'), game, color) &&
-                !pos_protected(('d', '1'), game, color)
+                !pos_protected(('b', '1'), game, &color.invert()) &&
+                !pos_protected(('c', '1'), game, &color.invert()) &&
+                !pos_protected(('d', '1'), game, &color.invert())
         }
     }
 }
@@ -299,7 +301,7 @@ fn pos_protected(pos: Position, game: &Game, color: &Color) -> bool {
     };
     for pos_protected in protected_positions {
         if pos == *pos_protected {
-            return true
+            return true;
         }
     }
     false
