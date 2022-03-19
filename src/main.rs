@@ -297,9 +297,9 @@ fn pos_protected(pos: Position, game: &Game, color: &Color) -> bool {
     } else {
         game.protected_squares[&Color::Black].as_ref()
     };
-    for pos_attacked in protected_positions {
-        if pos == *pos_attacked {
-            return true;
+    for pos_protected in protected_positions {
+        if pos == *pos_protected {
+            return true
         }
     }
     false
@@ -487,7 +487,7 @@ fn pieces_attacking_king(game: &Game) -> HashMap<Color, Vec<(Piece, Vec<Position
             for mv in moves {
                 if mv.captured_piece.is_some() {
                     if mv.captured_piece.unwrap().name == Name::King {
-                        if mv.piece.color.invert() == Color::White {
+                        if mv.piece.color == Color::White {
                             pieces_white.push((mv.piece, mv.traversed_squares));
                         } else {
                             pieces_black.push((mv.piece, mv.traversed_squares));
@@ -500,8 +500,8 @@ fn pieces_attacking_king(game: &Game) -> HashMap<Color, Vec<(Piece, Vec<Position
 
     HashMap::from(
         [
-            (Color::White, pieces_white),
-            (Color::Black, pieces_black)
+            (Color::White, pieces_black),
+            (Color::Black, pieces_white)
         ]
     )
 }
@@ -518,7 +518,7 @@ fn possible_moves(game: &Game, pos: Position, get_protected: bool) -> Vec<Move> 
 
     let piece = game.board[&pos].as_ref().unwrap();
 
-    if check(game, &piece.color) && game.pieces_attacking_king[&piece.color].len() > 1 && piece.name != Name::King {
+    if !get_protected && check(game, &piece.color) && game.pieces_attacking_king[&piece.color].len() > 1 && piece.name != Name::King {
         // double check: only king can move
         return Vec::new();
     }
@@ -532,7 +532,7 @@ fn possible_moves(game: &Game, pos: Position, get_protected: bool) -> Vec<Move> 
                 for y in [-1, 0, 1] {
                     let new_pos = padd(pos, (x, y));
                     if no_obstacles_in_one_move(new_pos, &game, &piece.color, get_protected) &&
-                        !pos_protected(new_pos, &game, &piece.color) {
+                        !pos_protected(new_pos, &game, &piece.color.invert()) {
                         moves.push(
                             Move {
                                 piece: piece.clone(),
@@ -690,7 +690,7 @@ fn possible_moves(game: &Game, pos: Position, get_protected: bool) -> Vec<Move> 
     }
 
 
-    if check(game, &piece.color) && piece.name != Name::King {
+    if !get_protected && check(game, &piece.color) && piece.name != Name::King {
         // filter out moves that do not protect the king. Only for pieces other than the king.
         debug_assert_eq!(1, game.pieces_attacking_king[&piece.color].len(), "More than one piece attacking the king");
         let (_, pos) = game.pieces_attacking_king[&piece.color][0].clone();
@@ -793,8 +793,11 @@ fn move_piece(game: &mut Game, from: Position, to: Position) -> bool {
                     game.board.insert(('f', '8'), Some(Piece::new(Name::Rook, Color::Black)));
                 }
             }
-            game.pieces_attacking_king = pieces_attacking_king(game);
+            // fixme circular relationship in those function. Dirty fix was used by checking bool get_protected when checking if check
+            //  get_all_protected_squares has to be run before pieces_attacking_king right now
             game.protected_squares = get_all_protected_squares(game);
+            game.pieces_attacking_king = pieces_attacking_king(game);
+
             if mv.captured_piece.is_some() {
                 game.captured.entry(
                     mv.piece.color.clone()).or_insert(
@@ -839,8 +842,8 @@ fn parse_input_move(std_input: &String) -> Result<(Position, Position), String> 
     match RE.captures(std_input) {
         None => Err(String::from("Wrong input format, please input a move.")),
         Some(cap) => {
-            let from: Position = (cap[0].chars().nth(0).unwrap(), cap[1].chars().nth(0).unwrap());
-            let to: Position = (cap[3].chars().nth(0).unwrap(), cap[3].chars().nth(0).unwrap());
+            let from: Position = (cap[1].chars().nth(0).unwrap(), cap[2].chars().nth(0).unwrap());
+            let to: Position = (cap[3].chars().nth(0).unwrap(), cap[4].chars().nth(0).unwrap());
             Ok((from, to))
         }
     }
