@@ -2,7 +2,10 @@ use std::collections::HashMap;
 use std::{fmt, io};
 use std::fmt::{Formatter};
 use std::io::BufRead;
-use std::sync::atomic::AtomicBool;
+
+use regex::Regex;
+
+use lazy_static::lazy_static;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Color {
@@ -828,28 +831,52 @@ fn move_piece(game: &mut Game, from: Position, to: Position) -> bool {
     }
 }
 
+
+fn parse_input_move(std_input: &String) -> Result<(Position, Position), String> {
+    lazy_static! {
+        static ref RE: Regex = Regex::new(r"(?:\s*)?([a-zA-Z])(?:\s*)?(\d)(?:\s*)?(?:-|->)?(?:\s*)?([a-zA-Z])(?:\s*)?(\d)(?:\s*)?").unwrap();
+    }
+    match RE.captures(std_input) {
+        None => Err(String::from("Wrong input format, please input a move.")),
+        Some(cap) => {
+            let from: Position = (cap[0].chars().nth(0).unwrap(), cap[1].chars().nth(0).unwrap());
+            let to: Position = (cap[3].chars().nth(0).unwrap(), cap[3].chars().nth(0).unwrap());
+            Ok((from, to))
+        }
+    }
+}
+
 fn headless_chess() {
     println!("Hello to rusty chess. Let's start a game:\n");
     let mut game = Game::new();
     let stdin = io::stdin();
     loop {
-        println!("{:?}s turn. Please input a move (e.g. \"e2 e4\" moves piece on e to e4)", game);
+        println!("{:?}s turn. Please input a move (e.g. \"e2 e4\" moves piece on e2 to e4)", game.turn);
+        println!("{}", game);
         let input_move = stdin.lock().lines().next().unwrap().unwrap();
+        match parse_input_move(&input_move) {
+            Err(e) => println!("{}", e),
+            Ok((from, to)) => {
+                if !move_piece(&mut game, from, to) {
+                    println!("Not a valid move please repeat a move.")
+                }
+            }
+        }
         // let split = input_move.split(" ").collect();
         // let possible_moves = possible_moves(&game, from, false);
     }
 }
 
 fn main() {
-    let mut game = Game::new();
-    println!("{}", game);
-    move_piece(&mut game, ('e', '2'), ('e', '4'));
-    println!("{}", game);
-    move_piece(&mut game, ('e', '4'), ('e', '5'));
-    println!("{}", game);
-    move_piece(&mut game, ('e', '7'), ('e', '6'));
-    println!("{}", game);
-    move_piece(&mut game, ('f', '1'), ('c', '4'));
-    println!("{}", game);
-    //headless_chess();
+    // let mut game = Game::new();
+    // println!("{}", game);
+    // move_piece(&mut game, ('e', '2'), ('e', '4'));
+    // println!("{}", game);
+    // move_piece(&mut game, ('e', '4'), ('e', '5'));
+    // println!("{}", game);
+    // move_piece(&mut game, ('e', '7'), ('e', '6'));
+    // println!("{}", game);
+    // move_piece(&mut game, ('f', '1'), ('c', '4'));
+    // println!("{}", game);
+    headless_chess();
 }
