@@ -6,6 +6,8 @@ use std::io::BufRead;
 use regex::Regex;
 
 use lazy_static::lazy_static;
+use crate::Color::White;
+use crate::MoveType::Enpassant;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Color {
@@ -513,7 +515,7 @@ fn check(game: &Game, color: &Color) -> bool {
 }
 
 fn possible_moves(game: &Game, pos: Position, get_protected: bool) -> Vec<Move> {
-    // todo what todo with get protected and check
+    // todo pinned pieces
     if game.board[&pos].is_none() {
         return Vec::new();
     }
@@ -629,19 +631,21 @@ fn possible_moves(game: &Game, pos: Position, get_protected: bool) -> Vec<Move> 
             // Normal moves
             for y in rel_pos_to_iter {
                 let new_pos = padd(pos, (0, direction * y));
-                if !no_obstacles_in_one_move(new_pos, &game, &piece.color, get_protected) {
-                    break;
-                }
-                moves.push(
-                    Move {
-                        piece: piece.clone(),
-                        move_type: MoveType::Normal,
-                        from: pos,
-                        to: new_pos,
-                        traversed_squares: vec![pos, new_pos],
-                        captured_piece: game.board[&new_pos].clone(),
+                match game.board.get(&new_pos) {
+                    Some(None) => {
+                        moves.push(
+                            Move {
+                                piece: piece.clone(),
+                                move_type: MoveType::Normal,
+                                from: pos,
+                                to: new_pos,
+                                traversed_squares: vec![pos, new_pos],
+                                captured_piece: game.board[&new_pos].clone(),
+                            }
+                        );
                     }
-                )
+                    _ => { break; }
+                }
             }
 
             // check if able to capture a piece
@@ -683,7 +687,7 @@ fn possible_moves(game: &Game, pos: Position, get_protected: bool) -> Vec<Move> 
                             from: pos,
                             to: new_pos,
                             traversed_squares: vec![pos, new_pos],
-                            captured_piece: game.board[&new_pos].clone(),
+                            captured_piece: game.board[&padd(new_pos, (0, -direction))].clone(),
                         }
                     )
                 }
@@ -771,12 +775,21 @@ impl Move {
 
 fn move_piece(game: &mut Game, from: Position, to: Position) -> bool {
     // todo pawns to other pieces
+    // todo checkmate and all the draws
     match Move::construct_if_valid(game, from, to) {
         Some(mv) => {
             game.turn = game.turn.invert();
             // update position
             game.board.insert(from, None);
             game.board.insert(to, Some(mv.piece.clone()));
+            if mv.move_type == MoveType::Enpassant {
+                let direction = if mv.piece.color == Color::White {
+                    1
+                } else {
+                    -1
+                };
+                game.board.insert(padd(mv.to, (0, -direction)), None);
+            }
             if mv.move_type == MoveType::LongCastle {
                 if mv.piece.color == Color::White {
                     game.board.insert(('a', '1'), None);
@@ -852,6 +865,7 @@ fn parse_input_move(std_input: &String) -> Result<(Position, Position), String> 
 }
 
 fn headless_chess() {
+    // fixme cannot play any move after some time. Stuck in check mode?
     println!("Hello to rusty chess. Let's start a game:\n");
     let mut game = Game::new();
     let stdin = io::stdin();
@@ -873,15 +887,5 @@ fn headless_chess() {
 }
 
 fn main() {
-    // let mut game = Game::new();
-    // println!("{}", game);
-    // move_piece(&mut game, ('e', '2'), ('e', '4'));
-    // println!("{}", game);
-    // move_piece(&mut game, ('e', '4'), ('e', '5'));
-    // println!("{}", game);
-    // move_piece(&mut game, ('e', '7'), ('e', '6'));
-    // println!("{}", game);
-    // move_piece(&mut game, ('f', '1'), ('c', '4'));
-    // println!("{}", game);
     headless_chess();
 }
