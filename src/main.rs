@@ -237,12 +237,12 @@ fn no_obstacles_in_one_move(pos: Position, game: &Game, color: &Color, get_prote
 fn can_short_castle(game: &Game, color: &Color) -> bool {
     match color {
         Color::Black => {
-            !check(game, color) && game.able_to_long_castle[color] && game.board[&('f', '8')].is_none() &&
+            !check(game, color) && game.able_to_short_castle[color] && game.board[&('f', '8')].is_none() &&
                 game.board[&('g', '8')].is_none() && !pos_protected(('f', '8'), game, &color.invert()) &&
                 !pos_protected(('g', '8'), game, &color.invert())
         }
         Color::White => {
-            !check(game, color) && game.able_to_long_castle[color] && game.board[&('f', '1')].is_none() &&
+            !check(game, color) && game.able_to_short_castle[color] && game.board[&('f', '1')].is_none() &&
                 game.board[&('g', '1')].is_none() && !pos_protected(('f', '1'), game, &color.invert()) &&
                 !pos_protected(('g', '1'), game, &color.invert())
         }
@@ -252,16 +252,14 @@ fn can_short_castle(game: &Game, color: &Color) -> bool {
 fn can_long_castle(game: &Game, color: &Color) -> bool {
     match color {
         Color::Black => {
-            !check(game, color) && game.able_to_short_castle[&color] && game.board[&('b', '8')].is_none() &&
+            !check(game, color) && game.able_to_long_castle[&color] && game.board[&('b', '8')].is_none() &&
                 game.board[&('c', '8')].is_none() && game.board[&('d', '8')].is_none() &&
-                !pos_protected(('b', '8'), game, &color.invert()) &&
                 !pos_protected(('c', '8'), game, &color.invert()) &&
                 !pos_protected(('d', '8'), game, &color.invert())
         }
         Color::White => {
-            !check(game, color) && game.able_to_short_castle[&color] && game.board[&('b', '1')].is_none() &&
+            !check(game, color) && game.able_to_long_castle[&color] && game.board[&('b', '1')].is_none() &&
                 game.board[&('c', '1')].is_none() && game.board[&('d', '1')].is_none() &&
-                !pos_protected(('b', '1'), game, &color.invert()) &&
                 !pos_protected(('c', '1'), game, &color.invert()) &&
                 !pos_protected(('d', '1'), game, &color.invert())
         }
@@ -836,8 +834,7 @@ fn move_piece(game: &mut Game, from: Position, to: Position) -> bool {
                     };
                     if mv.from == long_caste_pos {
                         game.able_to_long_castle.insert(mv.piece.color.clone(), false);
-                    }
-                    if mv.from == short_caste_pos {
+                    } else if mv.from == short_caste_pos {
                         game.able_to_short_castle.insert(mv.piece.color.clone(), false);
                     }
                 }
