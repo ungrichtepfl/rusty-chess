@@ -6,8 +6,6 @@ use std::io::BufRead;
 use regex::Regex;
 
 use lazy_static::lazy_static;
-use crate::Color::White;
-use crate::MoveType::Enpassant;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Color {
@@ -40,7 +38,7 @@ type Position = (char, char);
 struct Piece {
     name: Name,
     color: Color,
-    value: f32,
+    value: i8,
 }
 
 impl fmt::Display for Piece {
@@ -92,12 +90,12 @@ struct Game {
 impl Piece {
     fn new(name: Name, color: Color) -> Piece {
         match name {
-            Name::Pawn => Piece { name, color, value: 1.0 },
-            Name::Knight => Piece { name, color, value: 3.0 },
-            Name::Bishop => Piece { name, color, value: 3.0 },
-            Name::Rook => Piece { name, color, value: 5.0 },
-            Name::Queen => Piece { name, color, value: 8.0 },
-            Name::King => Piece { name, color, value: 3.5 },
+            Name::Pawn => Piece { name, color, value: 1 },
+            Name::Knight => Piece { name, color, value: 3 },
+            Name::Bishop => Piece { name, color, value: 3 },
+            Name::Rook => Piece { name, color, value: 5 },
+            Name::Queen => Piece { name, color, value: 8 },
+            Name::King => Piece { name, color, value: 0 },
         }
     }
 }
@@ -272,14 +270,14 @@ fn can_long_castle(game: &Game, color: &Color) -> bool {
     }
 }
 
-fn get_all_protected_squares(game: &Game) -> HashMap<Color, Vec<Position>> {
+fn get_all_protected_squares(game: &Game, filter_pinned: bool) -> HashMap<Color, Vec<Position>> {
     let mut protected_squares_white: Vec<Position> = Vec::new();
     let mut protected_squares_black: Vec<Position> = Vec::new();
     for x in 'a'..='h' {
         for y in '1'..='8' {
             if game.board[&(x, y)].is_some() {
                 let piece = game.board[&(x, y)].as_ref().unwrap();
-                let possible_moves = possible_moves(&game, (x, y), true);
+                let possible_moves = possible_moves(&game, (x, y), true, filter_pinned);
                 for m in possible_moves {
                     if piece.color == Color::White {
                         protected_squares_white.push(m.to);
@@ -399,12 +397,12 @@ fn possible_diagonal_moves(game: &Game, pos: Position, piece: &Piece, get_protec
 }
 
 
-fn pieces_attacking_king(game: &Game) -> HashMap<Color, Vec<(Piece, Vec<Position>)>> {
+fn pieces_attacking_king(game: &Game, filter_pinned: bool) -> HashMap<Color, Vec<(Piece, Vec<Position>)>> {
     let mut pieces_white: Vec<(Piece, Vec<Position>)> = Vec::new();
     let mut pieces_black: Vec<(Piece, Vec<Position>)> = Vec::new();
     for x in 'a'..='h' {
         for y in '1'..='8' {
-            let moves = possible_moves(game, (x, y.clone()), false);
+            let moves = possible_moves(game, (x, y.clone()), false, filter_pinned);
             for mv in moves {
                 if mv.captured_piece.is_some() {
                     if mv.captured_piece.unwrap().name == Name::King {
@@ -427,12 +425,12 @@ fn pieces_attacking_king(game: &Game) -> HashMap<Color, Vec<(Piece, Vec<Position
     )
 }
 
+#[inline]
 fn check(game: &Game, color: &Color) -> bool {
     !game.pieces_attacking_king[color].is_empty()
 }
 
-fn possible_moves(game: &Game, pos: Position, get_protected: bool) -> Vec<Move> {
-    // todo pinned pieces
+fn possible_moves(game: &Game, pos: Position, get_protected: bool, filter_pinned: bool) -> Vec<Move> {
     if game.board[&pos].is_none() {
         return Vec::new();
     }
@@ -672,7 +670,34 @@ fn possible_moves(game: &Game, pos: Position, get_protected: bool) -> Vec<Move> 
         moves = moves.drain(..).filter(|x| pos.contains(&x.to)).collect();
     }
 
+    if filter_pinned {
+        moves = moves.drain(..).filter(|x| piece_is_not_pinned(game, x)).collect()
+    }
+
     moves
+}
+
+fn piece_is_not_pinned(game: &Game, mv: &Move) -> bool {
+    if mv.piece.name == Name::King {
+        true
+    } else {
+        let mut game_after_move = game.clone();
+        game_after_move.turn = game_after_move.turn.invert();
+        // update position
+        game_after_move.board.insert(mv.from, None);
+        game_after_move.board.insert(mv.to, Some(mv.piece.clone()));
+        if mv.move_type == MoveType::Enpassant {
+            let direction = if mv.piece.color == Color::White {
+                1
+            } else {
+                -1
+            };
+            game_after_move.board.insert(padd(mv.to, (0, -direction)), None);
+        }
+        game_after_move.protected_squares = get_all_protected_squares(&game_after_move, false);
+        game_after_move.pieces_attacking_king = pieces_attacking_king(&game_after_move, false);
+        game_after_move.pieces_attacking_king[&mv.piece.color].is_empty()
+    }
 }
 
 impl fmt::Display for Move {
@@ -714,19 +739,12 @@ impl fmt::Display for Game {
     }
 }
 
-fn is_valid_move(game: &Game, from: Position, to: Position) -> bool {
-    match game.board.get(&from) {
-        Some(Some(piece)) => game.turn == piece.color && possible_moves(game, from, false).into_iter().map(|x| x.to).collect::<Vec<Position>>().contains(&to),
-        _ => false
-    }
-}
-
 impl Move {
     fn construct_if_valid(game: &Game, from: Position, to: Position) -> Option<Move> {
         match game.board.get(&from) {
             Some(Some(piece)) => {
                 if game.turn == piece.color {
-                    let matching_moves: Vec<Move> = possible_moves(game, from, false).drain(..).filter(|x| x.to == to).collect();
+                    let matching_moves: Vec<Move> = possible_moves(game, from, false, true).drain(..).filter(|x| x.to == to).collect();
                     if matching_moves.is_empty() {
                         None
                     } else {
@@ -779,8 +797,8 @@ fn move_piece(game: &mut Game, from: Position, to: Position) -> bool {
             }
             // fixme circular relationship in those function. Dirty fix was used by checking bool get_protected when checking if check
             //  get_all_protected_squares has to be run before pieces_attacking_king right now
-            game.protected_squares = get_all_protected_squares(game);
-            game.pieces_attacking_king = pieces_attacking_king(game);
+            game.protected_squares = get_all_protected_squares(game, true);
+            game.pieces_attacking_king = pieces_attacking_king(game, true);
 
             if mv.captured_piece.is_some() {
                 game.captured.entry(
