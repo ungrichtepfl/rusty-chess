@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::{fmt, io};
 use std::fmt::{Formatter};
 use std::io::BufRead;
+use std::process::exit;
 
 use regex::Regex;
 
@@ -760,7 +761,22 @@ impl Move {
     }
 }
 
-fn move_piece(game: &mut Game, from: Position, to: Position) -> bool {
+enum UserInput {
+    Move(Position, Position),
+    Promotion(Name),
+    Draw,
+    Resign,
+}
+
+enum UserOutput {
+    CheckMate,
+    StaleMate,
+    InvalidMove,
+    Promotion(Position),
+    Draw,
+}
+
+fn move_piece(game: &mut Game, from: Position, to: Position) -> Option<UserOutput> {
     // todo pawns to other pieces
     // todo checkmate and all the draws
     match Move::construct_if_valid(game, from, to) {
@@ -829,23 +845,31 @@ fn move_piece(game: &mut Game, from: Position, to: Position) -> bool {
                 }
             }
             game.history.push(mv);
-            true
+            None
         }
-        None => false
+        None => Some(UserOutput::InvalidMove)
     }
 }
 
 
-fn parse_input_move(std_input: &String) -> Result<(Position, Position), String> {
+fn parse_input_move(std_input: &String) -> Result<UserInput, String> {
     lazy_static! {
         static ref RE: Regex = Regex::new(r"(?:\s*)?([a-zA-Z])(?:\s*)?(\d)(?:\s*)?(?:-|->)?(?:\s*)?([a-zA-Z])(?:\s*)?(\d)(?:\s*)?").unwrap();
     }
     match RE.captures(std_input) {
-        None => Err(String::from("Wrong input format, please input a move.")),
+        None => { // todo change pawns
+            if std_input.contains("Resign") || std_input.contains("resign") {
+                Ok(UserInput::Resign)
+            } else if std_input.contains("Draw") || std_input.contains("draw") {
+                Ok(UserInput::Draw)
+            } else {
+                Err(String::from("Wrong input format, please input a move."))
+            }
+        }
         Some(cap) => {
             let from: Position = (cap[1].chars().nth(0).unwrap(), cap[2].chars().nth(0).unwrap());
             let to: Position = (cap[3].chars().nth(0).unwrap(), cap[4].chars().nth(0).unwrap());
-            Ok((from, to))
+            Ok(UserInput::Move(from, to))
         }
     }
 }
@@ -860,14 +884,51 @@ fn headless_chess() {
         let input_move = stdin.lock().lines().next().unwrap().unwrap();
         match parse_input_move(&input_move) {
             Err(e) => println!("{}", e),
-            Ok((from, to)) => {
-                if !move_piece(&mut game, from, to) {
-                    println!("Not a valid move please repeat a move.")
+            Ok(UserInput::Move(from, to)) => {
+                let user_output = move_piece(&mut game, from, to);
+                if user_output.is_some() {
+                    match user_output.unwrap() {
+                        UserOutput::InvalidMove => {
+                            println!("Not a valid move please repeat a move.")
+                        }
+                        UserOutput::Draw => {
+                            println!("It is a draw!");
+                            exit(0)
+                        }
+                        UserOutput::CheckMate => {
+                            println!("{:?} has won!", game.turn.invert());
+                            exit(0)
+                        }
+                        UserOutput::StaleMate => {
+                            println!("It is a draw stalemate!");
+                            exit(0)
+                        }
+                        UserOutput::Promotion(pos) => {
+                            unreachable!();
+                            //todo
+                        }
+                    }
                 }
             }
+            Ok(UserInput::Resign) => {
+                println!("{:?} resigns!", game.turn);
+                exit(0)
+            }
+            Ok(UserInput::Draw) => {
+                println!("{:?} offers a draw does {:?} accept it? [y/N]", game.turn, game.turn.invert());
+                let input_move = stdin.lock().lines().next().unwrap().unwrap();
+                if input_move.contains("y") {
+                    println!("It is a draw!");
+                    exit(0)
+                } else {
+                    println!("Draw has been refused!")
+                }
+            }
+            Ok(UserInput::Promotion(name)) => {
+                println!("Promotion has been selected.")
+                // todo
+            }
         }
-        // let split = input_move.split(" ").collect();
-        // let possible_moves = possible_moves(&game, from, false);
     }
 }
 
