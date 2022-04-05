@@ -426,6 +426,20 @@ fn pieces_attacking_king(game: &Game, filter_pinned: bool) -> HashMap<Color, Vec
     )
 }
 
+fn no_possible_moves(game: &Game, color: &Color) -> bool {
+    for x in 'a'..='h' {
+        for y in '1'..='8' {
+            let moves = possible_moves(game, (x, y.clone()), false, false);
+            if !moves.is_empty() {
+                if moves[0].piece.color == *color {
+                    return false;
+                }
+            }
+        }
+    }
+    true
+}
+
 #[inline]
 fn check(game: &Game, color: &Color) -> bool {
     !game.pieces_attacking_king[color].is_empty()
@@ -572,7 +586,7 @@ fn possible_moves(game: &Game, pos: Position, get_protected: bool, filter_pinned
             }
         }
 
-        Name::Pawn => {
+        Name::Pawn => {  // fixme pawn move not possible h6h5
             let (direction, rel_pos_to_iter) =
                 if piece.color == Color::White {
                     (1, if pos.1 == '2' { 1..3 } else { 1..2 })
@@ -778,7 +792,7 @@ enum UserOutput {
 
 fn move_piece(game: &mut Game, from: Position, to: Position) -> Option<UserOutput> {
     // todo pawns to other pieces
-    // todo checkmate and all the draws
+    // todo all the draws
     match Move::construct_if_valid(game, from, to) {
         Some(mv) => {
             game.turn = game.turn.invert();
@@ -845,6 +859,14 @@ fn move_piece(game: &mut Game, from: Position, to: Position) -> Option<UserOutpu
                 }
             }
             game.history.push(mv);
+            if no_possible_moves(game, &game.turn) {
+                return if check(game, &game.turn) {
+                    Some(UserOutput::CheckMate)
+                } else {
+                    Some(UserOutput::StaleMate)
+                };
+            }
+
             None
         }
         None => Some(UserOutput::InvalidMove)
@@ -857,7 +879,7 @@ fn parse_input_move(std_input: &String) -> Result<UserInput, String> {
         static ref RE: Regex = Regex::new(r"(?:\s*)?([a-zA-Z])(?:\s*)?(\d)(?:\s*)?(?:-|->)?(?:\s*)?([a-zA-Z])(?:\s*)?(\d)(?:\s*)?").unwrap();
     }
     match RE.captures(std_input) {
-        None => { // todo change pawns
+        None => {
             if std_input.contains("Resign") || std_input.contains("resign") {
                 Ok(UserInput::Resign)
             } else if std_input.contains("Draw") || std_input.contains("draw") {
@@ -893,14 +915,17 @@ fn headless_chess() {
                         }
                         UserOutput::Draw => {
                             println!("It is a draw!");
+                            println!("{}", game);
                             exit(0)
                         }
                         UserOutput::CheckMate => {
                             println!("{:?} has won!", game.turn.invert());
+                            println!("{}", game);
                             exit(0)
                         }
                         UserOutput::StaleMate => {
                             println!("It is a draw stalemate!");
+                            println!("{}", game);
                             exit(0)
                         }
                         UserOutput::Promotion(pos) => {
