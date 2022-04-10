@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::{fmt, io};
 use std::fmt::{Formatter};
 use std::io::BufRead;
@@ -23,7 +23,7 @@ impl Color {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Name {
     Pawn,
     Bishop,
@@ -35,7 +35,9 @@ enum Name {
 
 type Position = (char, char);
 
-#[derive(Debug, Clone)]
+type BoardArray = [Option<Piece>; 64];
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Piece {
     name: Name,
     color: Color,
@@ -56,7 +58,7 @@ impl fmt::Display for Piece {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum MoveType {
     Normal,
     Jump,
@@ -65,7 +67,7 @@ enum MoveType {
     ShortCastle,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Move {
     piece: Piece,
     from: Position,
@@ -81,6 +83,8 @@ struct Game {
     board: HashMap<Position, Option<Piece>>,
     captured: HashMap<Color, Vec<Piece>>,
     history: Vec<Move>,
+    number_of_repeated_positions: HashMap<(BoardArray, Vec<Move>), u8>,
+    number_of_moves_without_captures_or_pawn_moves: u8,
     able_to_long_castle: HashMap<Color, bool>,
     able_to_short_castle: HashMap<Color, bool>,
     protected_squares: HashMap<Color, Vec<Position>>,
@@ -189,16 +193,26 @@ impl Game {
             ]
         );
 
-        Game {
+        let mut game = Game {
             turn: Color::White,
             board,
             captured,
             history,
             protected_squares,
             pieces_attacking_king,
+            number_of_moves_without_captures_or_pawn_moves: 0,
+            number_of_repeated_positions: HashMap::new(),
             able_to_long_castle: able_to_castle.clone(),
             able_to_short_castle: able_to_castle,
-        }
+        };
+
+        let board_array = board_to_array(&game);
+        let all_possible_moves = get_all_possible_moves(&game);
+        let key = (board_array, all_possible_moves);
+
+        game.number_of_repeated_positions.insert(key, 1);
+
+        game
     }
 }
 
@@ -269,6 +283,19 @@ fn can_long_castle(game: &Game, color: &Color) -> bool {
                 !pos_protected(('d', '1'), game, &color.invert())
         }
     }
+}
+
+fn get_all_possible_moves(game: &Game) -> Vec<Move> {
+    let mut all_possible_moves: Vec<Move> = Vec::new();
+    for x in 'a'..='h' {
+        for y in '1'..='8' {
+            if game.board[&(x, y)].is_some() {
+                let piece = game.board[&(x, y)].as_ref().unwrap();
+                all_possible_moves.append(possible_moves(&game, (x, y), true, true).as_mut());
+            }
+        }
+    }
+    all_possible_moves
 }
 
 fn get_all_protected_squares(game: &Game, filter_pinned: bool) -> HashMap<Color, Vec<Position>> {
@@ -791,8 +818,30 @@ enum UserOutput {
     Draw,
 }
 
-fn move_piece(game: &mut Game, user_input: &UserInput) -> Option<UserOutput> {
-    // todo all the draws
+fn board_to_array(game: &Game) -> BoardArray {
+    const INIT: Option<Piece> = None;
+    let mut piece_array = [INIT; 64];
+    let mut idx = 0;
+    for x in 'a'..='h' {
+        for y in '1'..='8' {
+            piece_array[idx] = game.board[&(x, y)].clone();
+            idx = idx + 1;
+        }
+    }
+    piece_array
+}
+
+fn is_a_draw(game: &Game) -> bool {
+    if game.number_of_moves_without_captures_or_pawn_moves >= 50 {
+        true
+    } else if !game.number_of_repeated_positions.clone().into_iter().filter(|(_, num)| *num >= 3).peekable().peek().is_none() {
+        true
+    } else {
+        false
+    }
+}
+
+fn process_input(game: &mut Game, user_input: &UserInput) -> Option<UserOutput> {
     match user_input {
         UserInput::Move(from, to) => {
             match Move::construct_if_valid(game, *from, *to) {
@@ -871,7 +920,28 @@ fn move_piece(game: &mut Game, user_input: &UserInput) -> Option<UserOutput> {
                             }
                         }
                     }
+
+                    if !(mv.captured_piece.is_some() || mv.piece.name == Name::Pawn) {
+                        game.number_of_moves_without_captures_or_pawn_moves = game.number_of_moves_without_captures_or_pawn_moves + 1;
+                    }
+
                     game.history.push(mv);
+
+                    let board_array = board_to_array(game);
+                    let all_possible_moves = get_all_possible_moves(game);
+
+                    let key = (board_array, all_possible_moves);
+                    if game.number_of_repeated_positions.contains_key(&key) {
+                        let num_pos = game.number_of_repeated_positions[&key];
+                        game.number_of_repeated_positions.insert(key, num_pos + 1);
+                    } else {
+                        game.number_of_repeated_positions.insert(key, 1);
+                    }
+
+                    if is_a_draw(game) {
+                        return Some(UserOutput::Draw);
+                    }
+
                     if no_possible_moves(game, &game.turn) {
                         return if check(game, &game.turn) {
                             Some(UserOutput::CheckMate)
@@ -943,25 +1013,25 @@ fn headless_chess() {
         match parse_input_move(&input_move) {
             Err(e) => println!("{}", e),
             Ok(UserInput::Move(from, to)) => {
-                let user_output = move_piece(&mut game, &UserInput::Move(from, to));
+                let user_output = process_input(&mut game, &UserInput::Move(from, to));
                 if user_output.is_some() {
                     match user_output.unwrap() {
                         UserOutput::InvalidMove => {
                             println!("Not a valid move please repeat a move.")
                         }
                         UserOutput::Draw => {
-                            println!("It is a draw!");
                             println!("{}", game);
+                            println!("It is a draw!");
                             exit(0)
                         }
                         UserOutput::CheckMate => {
-                            println!("{:?} has won!", game.turn.invert());
                             println!("{}", game);
+                            println!("{:?} has won!", game.turn.invert());
                             exit(0)
                         }
                         UserOutput::StaleMate => {
-                            println!("It is a draw stalemate!");
                             println!("{}", game);
+                            println!("It is a draw stalemate!");
                             exit(0)
                         }
                         UserOutput::Promotion(pos) => {
@@ -970,13 +1040,13 @@ fn headless_chess() {
                             let promotion_str = stdin.lock().lines().next().unwrap().unwrap();
                             let color = game.turn.clone();
                             if promotion_str.contains("Queen") || promotion_str.contains("queen") {
-                                move_piece(&mut game, &UserInput::Promotion(Piece::new(Name::Queen, color), pos));
+                                process_input(&mut game, &UserInput::Promotion(Piece::new(Name::Queen, color), pos));
                             } else if promotion_str.contains("Rook") || promotion_str.contains("rook") {
-                                move_piece(&mut game, &UserInput::Promotion(Piece::new(Name::Rook, color), pos));
+                                process_input(&mut game, &UserInput::Promotion(Piece::new(Name::Rook, color), pos));
                             } else if promotion_str.contains("Knight") || promotion_str.contains("knight") {
-                                move_piece(&mut game, &UserInput::Promotion(Piece::new(Name::Knight, color), pos));
+                                process_input(&mut game, &UserInput::Promotion(Piece::new(Name::Knight, color), pos));
                             } else if promotion_str.contains("Bishop") || promotion_str.contains("Bishop") {
-                                move_piece(&mut game, &UserInput::Promotion(Piece::new(Name::Bishop, color), pos));
+                                process_input(&mut game, &UserInput::Promotion(Piece::new(Name::Bishop, color), pos));
                             } else {
                                 println!("Invalid choice. Please choose between Queen, Rook, Bishop, Knight.");
                                 continue;
