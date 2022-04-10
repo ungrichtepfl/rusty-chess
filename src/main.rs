@@ -586,7 +586,7 @@ fn possible_moves(game: &Game, pos: Position, get_protected: bool, filter_pinned
             }
         }
 
-        Name::Pawn => {  // fixme pawn move not possible h6h5
+        Name::Pawn => {
             let (direction, rel_pos_to_iter) =
                 if piece.color == Color::White {
                     (1, if pos.1 == '2' { 1..3 } else { 1..2 })
@@ -775,9 +775,10 @@ impl Move {
     }
 }
 
+#[derive(Debug, Clone)]
 enum UserInput {
     Move(Position, Position),
-    Promotion(Name),
+    Promotion(Piece, Position),
     Draw,
     Resign,
 }
@@ -790,75 +791,110 @@ enum UserOutput {
     Draw,
 }
 
-fn move_piece(game: &mut Game, from: Position, to: Position) -> Option<UserOutput> {
-    // todo pawns to other pieces
+fn move_piece(game: &mut Game, user_input: &UserInput) -> Option<UserOutput> {
     // todo all the draws
-    match Move::construct_if_valid(game, from, to) {
-        Some(mv) => {
+    match user_input {
+        UserInput::Move(from, to) => {
+            match Move::construct_if_valid(game, *from, *to) {
+                Some(mv) => {
+                    if mv.piece.name == Name::Pawn && mv.move_type == MoveType::Normal
+                        && (mv.to.1 == '8' || mv.to.1 == '1') {
+                        // update position
+                        game.board.insert(*from, None);
+                        game.board.insert(*to, Some(mv.piece.clone()));
+                        game.history.push(mv.clone());
+                        return Some(UserOutput::Promotion(mv.to));
+                    }
+
+                    game.turn = game.turn.invert();
+                    // update position
+                    game.board.insert(*from, None);
+                    game.board.insert(*to, Some(mv.piece.clone()));
+
+
+                    if mv.move_type == MoveType::Enpassant {
+                        let direction = if mv.piece.color == Color::White {
+                            1
+                        } else {
+                            -1
+                        };
+                        game.board.insert(padd(mv.to, (0, -direction)), None);
+                    }
+                    if mv.move_type == MoveType::LongCastle {
+                        if mv.piece.color == Color::White {
+                            game.board.insert(('a', '1'), None);
+                            game.board.insert(('d', '1'), Some(Piece::new(Name::Rook, Color::White)));
+                        } else {
+                            game.board.insert(('a', '8'), None);
+                            game.board.insert(('d', '8'), Some(Piece::new(Name::Rook, Color::Black)));
+                        }
+                    }
+                    if mv.move_type == MoveType::ShortCastle {
+                        if mv.piece.color == Color::White {
+                            game.board.insert(('h', '1'), None);
+                            game.board.insert(('f', '1'), Some(Piece::new(Name::Rook, Color::White)));
+                        } else {
+                            game.board.insert(('h', '8'), None);
+                            game.board.insert(('f', '8'), Some(Piece::new(Name::Rook, Color::Black)));
+                        }
+                    }
+                    // fixme circular relationship in those function. Dirty fix was used by checking bool get_protected when checking if check
+                    //  get_all_protected_squares has to be run before pieces_attacking_king right now
+                    game.protected_squares = get_all_protected_squares(game, true);
+                    game.pieces_attacking_king = pieces_attacking_king(game, true);
+
+                    if mv.captured_piece.is_some() {
+                        game.captured.entry(
+                            mv.piece.color.clone()).or_insert(
+                            Vec::new()).push(mv.captured_piece.clone().unwrap());
+                    }
+                    if (mv.piece.name == Name::King || mv.piece.name == Name::Rook)
+                        && (game.able_to_long_castle[&mv.piece.color] || game.able_to_short_castle[&mv.piece.color]) {
+                        if mv.piece.name == Name::King {
+                            game.able_to_short_castle.insert(mv.piece.color.clone(), false);
+                            game.able_to_long_castle.insert(mv.piece.color.clone(), false);
+                        } else {
+                            let long_caste_pos: Position = if mv.piece.color == Color::White {
+                                ('a', '1')
+                            } else {
+                                ('a', '8')
+                            };
+                            let short_caste_pos: Position = if mv.piece.color == Color::White {
+                                ('h', '1')
+                            } else {
+                                ('h', '8')
+                            };
+                            if mv.from == long_caste_pos {
+                                game.able_to_long_castle.insert(mv.piece.color.clone(), false);
+                            } else if mv.from == short_caste_pos {
+                                game.able_to_short_castle.insert(mv.piece.color.clone(), false);
+                            }
+                        }
+                    }
+                    game.history.push(mv);
+                    if no_possible_moves(game, &game.turn) {
+                        return if check(game, &game.turn) {
+                            Some(UserOutput::CheckMate)
+                        } else {
+                            Some(UserOutput::StaleMate)
+                        };
+                    }
+
+                    None
+                }
+                None => Some(UserOutput::InvalidMove)
+            }
+        }
+        UserInput::Promotion(piece, pos) => {
             game.turn = game.turn.invert();
-            // update position
-            game.board.insert(from, None);
-            game.board.insert(to, Some(mv.piece.clone()));
-            if mv.move_type == MoveType::Enpassant {
-                let direction = if mv.piece.color == Color::White {
-                    1
-                } else {
-                    -1
-                };
-                game.board.insert(padd(mv.to, (0, -direction)), None);
-            }
-            if mv.move_type == MoveType::LongCastle {
-                if mv.piece.color == Color::White {
-                    game.board.insert(('a', '1'), None);
-                    game.board.insert(('d', '1'), Some(Piece::new(Name::Rook, Color::White)));
-                } else {
-                    game.board.insert(('a', '8'), None);
-                    game.board.insert(('d', '8'), Some(Piece::new(Name::Rook, Color::Black)));
-                }
-            }
-            if mv.move_type == MoveType::ShortCastle {
-                if mv.piece.color == Color::White {
-                    game.board.insert(('h', '1'), None);
-                    game.board.insert(('f', '1'), Some(Piece::new(Name::Rook, Color::White)));
-                } else {
-                    game.board.insert(('h', '8'), None);
-                    game.board.insert(('f', '8'), Some(Piece::new(Name::Rook, Color::Black)));
-                }
-            }
+            game.board.insert(*pos, Some(piece.clone()));
+
+
             // fixme circular relationship in those function. Dirty fix was used by checking bool get_protected when checking if check
             //  get_all_protected_squares has to be run before pieces_attacking_king right now
             game.protected_squares = get_all_protected_squares(game, true);
             game.pieces_attacking_king = pieces_attacking_king(game, true);
 
-            if mv.captured_piece.is_some() {
-                game.captured.entry(
-                    mv.piece.color.clone()).or_insert(
-                    Vec::new()).push(mv.captured_piece.clone().unwrap());
-            }
-            if (mv.piece.name == Name::King || mv.piece.name == Name::Rook)
-                && (game.able_to_long_castle[&mv.piece.color] || game.able_to_short_castle[&mv.piece.color]) {
-                if mv.piece.name == Name::King {
-                    game.able_to_short_castle.insert(mv.piece.color.clone(), false);
-                    game.able_to_long_castle.insert(mv.piece.color.clone(), false);
-                } else {
-                    let long_caste_pos: Position = if mv.piece.color == Color::White {
-                        ('a', '1')
-                    } else {
-                        ('a', '8')
-                    };
-                    let short_caste_pos: Position = if mv.piece.color == Color::White {
-                        ('h', '1')
-                    } else {
-                        ('h', '8')
-                    };
-                    if mv.from == long_caste_pos {
-                        game.able_to_long_castle.insert(mv.piece.color.clone(), false);
-                    } else if mv.from == short_caste_pos {
-                        game.able_to_short_castle.insert(mv.piece.color.clone(), false);
-                    }
-                }
-            }
-            game.history.push(mv);
             if no_possible_moves(game, &game.turn) {
                 return if check(game, &game.turn) {
                     Some(UserOutput::CheckMate)
@@ -869,7 +905,7 @@ fn move_piece(game: &mut Game, from: Position, to: Position) -> Option<UserOutpu
 
             None
         }
-        None => Some(UserOutput::InvalidMove)
+        _ => { unreachable!() }
     }
 }
 
@@ -907,7 +943,7 @@ fn headless_chess() {
         match parse_input_move(&input_move) {
             Err(e) => println!("{}", e),
             Ok(UserInput::Move(from, to)) => {
-                let user_output = move_piece(&mut game, from, to);
+                let user_output = move_piece(&mut game, &UserInput::Move(from, to));
                 if user_output.is_some() {
                     match user_output.unwrap() {
                         UserOutput::InvalidMove => {
@@ -929,8 +965,22 @@ fn headless_chess() {
                             exit(0)
                         }
                         UserOutput::Promotion(pos) => {
-                            unreachable!();
-                            //todo
+                            println!("{}", game);
+                            println!("To what piece do you want to promote your pawn (Queen, Rook, Knight, Bishop)?");
+                            let promotion_str = stdin.lock().lines().next().unwrap().unwrap();
+                            let color = game.turn.clone();
+                            if promotion_str.contains("Queen") || promotion_str.contains("queen") {
+                                move_piece(&mut game, &UserInput::Promotion(Piece::new(Name::Queen, color), pos));
+                            } else if promotion_str.contains("Rook") || promotion_str.contains("rook") {
+                                move_piece(&mut game, &UserInput::Promotion(Piece::new(Name::Rook, color), pos));
+                            } else if promotion_str.contains("Knight") || promotion_str.contains("knight") {
+                                move_piece(&mut game, &UserInput::Promotion(Piece::new(Name::Knight, color), pos));
+                            } else if promotion_str.contains("Bishop") || promotion_str.contains("Bishop") {
+                                move_piece(&mut game, &UserInput::Promotion(Piece::new(Name::Bishop, color), pos));
+                            } else {
+                                println!("Invalid choice. Please choose between Queen, Rook, Bishop, Knight.");
+                                continue;
+                            }
                         }
                     }
                 }
@@ -949,9 +999,8 @@ fn headless_chess() {
                     println!("Draw has been refused!")
                 }
             }
-            Ok(UserInput::Promotion(name)) => {
-                println!("Promotion has been selected.")
-                // todo
+            Ok(UserInput::Promotion(_, _)) => {
+                unreachable!("Should not be an output of parsing.")
             }
         }
     }
