@@ -1,11 +1,12 @@
-use std::collections::{HashMap, HashSet};
+// standard imports
+use std::collections::HashMap;
 use std::{fmt, io};
 use std::fmt::{Formatter};
 use std::io::BufRead;
 use std::process::exit;
 
+// external crates
 use regex::Regex;
-
 use lazy_static::lazy_static;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -751,30 +752,32 @@ impl fmt::Display for Move {
 impl fmt::Display for Game {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut res = String::new();
-        for _ in 1..=8 {
-            res.push_str("\t-");
+        res.push_str("  ");
+        for _ in 1..=16 {
+            res.push_str(" -");
         }
         res.push_str("\n");
 
         for y in ('1'..='8').rev() {
-            res.push_str(format!("{}|\t", y).as_str());
+            res.push_str(format!("{} | ", y).as_str());
             for x in 'a'..='h' {
                 match &self.board[&(x, y)] {
-                    None => res.push_str("  |\t"),
+                    None => res.push_str("  | "),
                     Some(piece) => {
-                        res.push_str(format!("{}|\t", piece).as_str())
+                        res.push_str(format!("{} | ", piece).as_str())
                     }
                 }
             }
             res.push_str(format!("\n").as_str());
-
-            for _ in 1..=8 {
-                res.push_str("\t-");
+            res.push_str(format!("  ").as_str());
+            for _ in 1..=16 {
+                res.push_str(" -");
             }
             res.push_str("\n");
         }
+        res.push_str("    ");
         for x in 'a'..='h' {
-            res.push_str(format!("\t{}", x).as_str());
+            res.push_str(format!("{}   ", x).as_str());
         }
         res.push_str("\n");
         write!(f, "{}", res)
@@ -1007,8 +1010,8 @@ fn headless_chess() {
     let mut game = Game::new();
     let stdin = io::stdin();
     loop {
-        println!("{:?}s turn. Please input a move (e.g. \"e2 e4\" moves piece on e2 to e4)", game.turn);
         println!("{}", game);
+        println!("{:?}s turn. Please input a move (e.g. \"e2 e4\" moves piece on e2 to e4)", game.turn);
         let input_move = stdin.lock().lines().next().unwrap().unwrap();
         match parse_input_move(&input_move) {
             Err(e) => println!("{}", e),
