@@ -84,7 +84,7 @@ struct Game {
     board: HashMap<Position, Option<Piece>>,
     captured: HashMap<Color, Vec<Piece>>,
     history: Vec<Move>,
-    number_of_repeated_positions: HashMap<(BoardArray, Vec<Move>), u8>,
+    number_of_repeated_board_states: HashMap<(Color, BoardArray, Vec<Move>), u8>,
     number_of_moves_without_captures_or_pawn_moves: u8,
     able_to_long_castle: HashMap<Color, bool>,
     able_to_short_castle: HashMap<Color, bool>,
@@ -202,16 +202,16 @@ impl Game {
             protected_squares,
             pieces_attacking_king,
             number_of_moves_without_captures_or_pawn_moves: 0,
-            number_of_repeated_positions: HashMap::new(),
+            number_of_repeated_board_states: HashMap::new(),
             able_to_long_castle: able_to_castle.clone(),
             able_to_short_castle: able_to_castle,
         };
 
         let board_array = board_to_array(&game);
         let all_possible_moves = get_all_possible_moves(&game);
-        let key = (board_array, all_possible_moves);
+        let key = (game.turn.clone(), board_array, all_possible_moves);
 
-        game.number_of_repeated_positions.insert(key, 1);
+        game.number_of_repeated_board_states.insert(key, 1);
 
         game
     }
@@ -752,9 +752,9 @@ impl fmt::Display for Move {
 impl fmt::Display for Game {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut res = String::new();
-        res.push_str("  ");
+        res.push_str("  -");
         for _ in 1..=16 {
-            res.push_str(" -");
+            res.push_str("--");
         }
         res.push_str("\n");
 
@@ -769,9 +769,9 @@ impl fmt::Display for Game {
                 }
             }
             res.push_str(format!("\n").as_str());
-            res.push_str(format!("  ").as_str());
+            res.push_str(format!("  -").as_str());
             for _ in 1..=16 {
-                res.push_str(" -");
+                res.push_str("--");
             }
             res.push_str("\n");
         }
@@ -837,7 +837,7 @@ fn board_to_array(game: &Game) -> BoardArray {
 fn is_a_draw(game: &Game) -> bool {
     if game.number_of_moves_without_captures_or_pawn_moves >= 50 {
         true
-    } else if !game.number_of_repeated_positions.clone().into_iter().filter(|(_, num)| *num >= 3).peekable().peek().is_none() {
+    } else if !game.number_of_repeated_board_states.clone().into_iter().filter(|(_, num)| *num >= 3).peekable().peek().is_none() {
         true
     } else {
         false
@@ -933,12 +933,12 @@ fn process_input(game: &mut Game, user_input: &UserInput) -> Option<UserOutput> 
                     let board_array = board_to_array(game);
                     let all_possible_moves = get_all_possible_moves(game);
 
-                    let key = (board_array, all_possible_moves);
-                    if game.number_of_repeated_positions.contains_key(&key) {
-                        let num_pos = game.number_of_repeated_positions[&key];
-                        game.number_of_repeated_positions.insert(key, num_pos + 1);
+                    let key = (game.turn.clone(), board_array, all_possible_moves);
+                    if game.number_of_repeated_board_states.contains_key(&key) {
+                        let num_pos = game.number_of_repeated_board_states[&key];
+                        game.number_of_repeated_board_states.insert(key, num_pos + 1);
                     } else {
-                        game.number_of_repeated_positions.insert(key, 1);
+                        game.number_of_repeated_board_states.insert(key, 1);
                     }
 
                     if is_a_draw(game) {
@@ -1009,9 +1009,13 @@ fn headless_chess() {
     println!("Hello to rusty chess. Let's start a game:\n");
     let mut game = Game::new();
     let stdin = io::stdin();
+    let mut previous_loop_turn = game.turn.invert();
     loop {
-        println!("{}", game);
-        println!("{:?}s turn. Please input a move (e.g. \"e2 e4\" moves piece on e2 to e4)", game.turn);
+        if previous_loop_turn != game.turn {
+            println!("{}", game);
+            println!("{:?}'s turn. Please input a move (e.g. \"e2e4\" moves piece from e2 to e4)", game.turn);
+        }
+        previous_loop_turn = game.turn.clone();
         let input_move = stdin.lock().lines().next().unwrap().unwrap();
         match parse_input_move(&input_move) {
             Err(e) => println!("{}", e),
