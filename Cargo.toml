@@ -8,4 +8,4 @@ authors = ["Christoph Ungricht <christoph.ungricht@outlook.com>"]
 repository = "https://github.com/ungrichtepfl/rusty-chess"
 readme = "README.md"
 license-file = "LICENSE"
-exclude = ["example-code/*", ".gitignore"]
+exclude = [".gitignore"]
