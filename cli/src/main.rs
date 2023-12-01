@@ -1,6 +1,4 @@
-mod game;
-
-use crate::game::{Game, Piece, PieceType, Position, UserInput, UserOutput};
+use rusty_chess_core::game::{Game, Piece, PieceType, Position, UserInput, UserOutput};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::io;

@@ -1,22 +1,11 @@
-[package]
-name = "rusty-chess"
-version = "0.1.0"
-edition = "2021"
-description = "A small chess application."
+[workspace]
+members = ["core", "cli"]
+resolver = "2"
+
+[workspace.package]
+description = "A small chess engine with UI written in Rust"
 authors = ["Christoph Ungricht <christoph.ungricht@outlook.com>"]
 repository = "https://github.com/ungrichtepfl/rusty-chess"
 readme = "README.md"
 license-file = "LICENSE"
 exclude = ["example-code/*", ".gitignore"]
-
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-regex = "1.5.5"
-lazy_static = "1.4.0"
-
-[[bin]]
-name = "rusty-chess-cli"
-path = "src/cli.rs"
-

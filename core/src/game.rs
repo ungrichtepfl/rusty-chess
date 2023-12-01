@@ -1,4 +1,3 @@
-// standard imports
 use std::collections::HashMap;
 use std::fmt::{self, Formatter};
 use std::u8;
