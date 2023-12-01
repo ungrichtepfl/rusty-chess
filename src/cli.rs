@@ -45,7 +45,7 @@ fn headless_chess() {
     let mut previous_loop_turn = game.turn.invert();
     loop {
         if previous_loop_turn != game.turn {
-            println!("{}", game);
+            println!("{game}");
             println!(
                 "{:?}'s turn. Please input a move (e.g. \"e2e4\" moves piece from e2 to e4)",
                 game.turn
@@ -54,31 +54,31 @@ fn headless_chess() {
         previous_loop_turn = game.turn.clone();
         let input_move = stdin.lock().lines().next().unwrap().unwrap();
         match parse_input_move(&input_move) {
-            Err(e) => println!("{}", e),
+            Err(e) => println!("{e}"),
             Ok(UserInput::Move(from, to)) => {
                 let user_output = game.process_input(&UserInput::Move(from, to));
                 if user_output.is_some() {
                     match user_output.unwrap() {
                         UserOutput::InvalidMove => {
-                            println!("Not a valid move please repeat a move.")
+                            println!("Not a valid move please repeat a move.");
                         }
                         UserOutput::Draw => {
-                            println!("{}", game);
+                            println!("{game}");
                             println!("It is a draw!");
                             exit(0)
                         }
                         UserOutput::CheckMate => {
-                            println!("{}", game);
+                            println!("{game}");
                             println!("{:?} has won!", game.turn.invert());
                             exit(0)
                         }
                         UserOutput::StaleMate => {
-                            println!("{}", game);
+                            println!("{game}");
                             println!("It is a draw stalemate!");
                             exit(0)
                         }
                         UserOutput::Promotion(pos) => {
-                            println!("{}", game);
+                            println!("{game}");
                             println!("To what piece do you want to promote your pawn (Queen, Rook, Knight, Bishop)?");
                             let promotion_str = stdin.lock().lines().next().unwrap().unwrap();
                             let color = game.turn.clone();
@@ -131,7 +131,7 @@ fn headless_chess() {
                     println!("It is a draw!");
                     exit(0)
                 } else {
-                    println!("Draw has been refused!")
+                    println!("Draw has been refused!");
                 }
             }
             Ok(UserInput::Promotion(_, _)) => {

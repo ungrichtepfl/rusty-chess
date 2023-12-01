@@ -209,11 +209,11 @@ impl fmt::Display for Game {
         res.push('\n');
 
         for y in ('1'..='8').rev() {
-            res.push_str(format!("{} | ", y).as_str());
+            res.push_str(format!("{y} | ").as_str());
             for x in 'a'..='h' {
                 match &self.board[&Position(x, y)] {
                     None => res.push_str("  | "),
-                    Some(piece) => res.push_str(format!("{} | ", piece).as_str()),
+                    Some(piece) => res.push_str(format!("{piece} | ").as_str()),
                 }
             }
             res.push_str("\n".to_string().as_str());
@@ -225,10 +225,10 @@ impl fmt::Display for Game {
         }
         res.push_str("    ");
         for x in 'a'..='h' {
-            res.push_str(format!("{}   ", x).as_str());
+            res.push_str(format!("{x}   ").as_str());
         }
         res.push('\n');
-        write!(f, "{}", res)
+        write!(f, "{res}")
     }
 }
 
@@ -241,12 +241,12 @@ impl Game {
                 let piece = match (x, y) {
                     (_, '2') => Some(Piece::new(PieceType::Pawn, Color::White)),
                     (_, '7') => Some(Piece::new(PieceType::Pawn, Color::Black)),
-                    ('a', '1') | ('h', '1') => Some(Piece::new(PieceType::Rook, Color::White)),
-                    ('a', '8') | ('h', '8') => Some(Piece::new(PieceType::Rook, Color::Black)),
-                    ('b', '1') | ('g', '1') => Some(Piece::new(PieceType::Knight, Color::White)),
-                    ('b', '8') | ('g', '8') => Some(Piece::new(PieceType::Knight, Color::Black)),
-                    ('c', '1') | ('f', '1') => Some(Piece::new(PieceType::Bishop, Color::White)),
-                    ('c', '8') | ('f', '8') => Some(Piece::new(PieceType::Bishop, Color::Black)),
+                    ('a' | 'h', '1') => Some(Piece::new(PieceType::Rook, Color::White)),
+                    ('a' | 'h', '8') => Some(Piece::new(PieceType::Rook, Color::Black)),
+                    ('b' | 'g', '1') => Some(Piece::new(PieceType::Knight, Color::White)),
+                    ('b' | 'g', '8') => Some(Piece::new(PieceType::Knight, Color::Black)),
+                    ('c' | 'f', '1') => Some(Piece::new(PieceType::Bishop, Color::White)),
+                    ('c' | 'f', '8') => Some(Piece::new(PieceType::Bishop, Color::Black)),
                     ('d', '1') => Some(Piece::new(PieceType::Queen, Color::White)),
                     ('d', '8') => Some(Piece::new(PieceType::Queen, Color::Black)),
                     ('e', '1') => Some(Piece::new(PieceType::King, Color::White)),
@@ -368,7 +368,7 @@ impl Game {
                         if mv.captured_piece.is_some() {
                             self.captured
                                 .entry(mv.piece.color.clone())
-                                .or_insert(Vec::new())
+                                .or_default()
                                 .push(mv.captured_piece.clone().unwrap());
                         }
                         if (mv.piece.piece_type == PieceType::King
@@ -816,7 +816,7 @@ impl Game {
                         to: pos.add((-2, 0)),
                         traversed_squares: vec![pos, pos.add((-1, 0)), pos.add((-2, 0))],
                         captured_piece: self.board[&pos.add((-2, 0))].clone(),
-                    })
+                    });
                 }
                 if !get_protected && self.can_short_castle(&piece.color) {
                     moves.push(Move {
@@ -826,7 +826,7 @@ impl Game {
                         to: pos.add((2, 0)),
                         traversed_squares: vec![pos, pos.add((1, 0)), pos.add((2, 0))],
                         captured_piece: self.board[&pos.add((2, 0))].clone(),
-                    })
+                    });
                 }
             }
 
@@ -1002,7 +1002,7 @@ impl Game {
             moves = moves
                 .drain(..)
                 .filter(|x| self.piece_is_not_pinned(x))
-                .collect()
+                .collect();
         }
 
         moves
