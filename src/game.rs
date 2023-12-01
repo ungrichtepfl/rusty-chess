@@ -1,6 +1,7 @@
 // standard imports
 use std::collections::HashMap;
 use std::fmt::{self, Formatter};
+use std::u8;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Color {
@@ -31,8 +32,7 @@ impl PieceType {
     fn value(&self) -> u8 {
         match self {
             PieceType::Pawn => 1,
-            PieceType::Knight => 3,
-            PieceType::Bishop => 3,
+            PieceType::Knight | PieceType::Bishop => 3,
             PieceType::Rook => 5,
             PieceType::Queen => 8,
             PieceType::King => 0,
@@ -46,9 +46,18 @@ pub struct Position(pub char, pub char);
 impl Position {
     /// Adds a tuple of i8 to the position and returns a new position.
     /// No boundary check is done!
-    fn add(&self, to_add: (i8, i8)) -> Position {
-        let new_x = (self.0 as i8 + to_add.0) as u8 as char;
-        let new_y = (self.1 as i8 + to_add.1) as u8 as char;
+    fn add(self, to_add: (i8, i8)) -> Position {
+        fn checked_add(a: char, b: i8) -> char {
+            let b_abs = b.unsigned_abs();
+            let a_u8 = a as u8;
+            if b < 0 {
+                a_u8.saturating_sub(b_abs) as char
+            } else {
+                a_u8.saturating_add(b_abs) as char
+            }
+        }
+        let new_x = checked_add(self.0, to_add.0);
+        let new_y = checked_add(self.1, to_add.1);
 
         Position(new_x, new_y)
     }
@@ -59,11 +68,13 @@ impl From<(char, char)> for Position {
         Position(val.0, val.1)
     }
 }
+
 impl From<(&char, &char)> for Position {
     fn from(val: (&char, &char)) -> Self {
         Position(*val.0, *val.1)
     }
 }
+
 type BoardArray = [Option<Piece>; 64];
 
 enum Obstacle {
@@ -129,14 +140,7 @@ impl fmt::Display for Piece {
 
 impl Piece {
     pub fn new(piece_type: PieceType, color: Color) -> Piece {
-        match piece_type {
-            PieceType::Pawn => Piece { piece_type, color },
-            PieceType::Knight => Piece { piece_type, color },
-            PieceType::Bishop => Piece { piece_type, color },
-            PieceType::Rook => Piece { piece_type, color },
-            PieceType::Queen => Piece { piece_type, color },
-            PieceType::King => Piece { piece_type, color },
-        }
+        Piece { piece_type, color }
     }
 }
 
@@ -301,6 +305,8 @@ impl Game {
 
         game
     }
+
+    #[allow(clippy::too_many_lines)]
     pub fn process_input(&mut self, user_input: &UserInput) -> Option<UserOutput> {
         match user_input {
             UserInput::Move(from, to) => {
@@ -369,7 +375,7 @@ impl Game {
                             self.captured
                                 .entry(mv.piece.color.clone())
                                 .or_default()
-                                .push(mv.captured_piece.clone().unwrap());
+                                .push(mv.captured_piece.clone().expect("Checked before"));
                         }
                         if (mv.piece.piece_type == PieceType::King
                             || mv.piece.piece_type == PieceType::Rook)
@@ -476,6 +482,7 @@ impl Game {
             Some(Some(p)) => Some(Obstacle::Piece(p.color.clone())),
         }
     }
+
     fn can_short_castle(&self, color: &Color) -> bool {
         match color {
             Color::Black => {
@@ -496,6 +503,7 @@ impl Game {
             }
         }
     }
+
     fn can_long_castle(&self, color: &Color) -> bool {
         match color {
             Color::Black => {
@@ -524,8 +532,7 @@ impl Game {
         let mut protected_squares_black: Vec<Position> = Vec::new();
         for x in 'a'..='h' {
             for y in '1'..='8' {
-                if self.board[&Position(x, y)].is_some() {
-                    let piece = self.board[&Position(x, y)].as_ref().unwrap();
+                if let Some(piece) = &self.board[&Position(x, y)] {
                     let possible_moves = self.possible_moves(Position(x, y), true, filter_pinned);
                     for m in possible_moves {
                         if piece.color == Color::White {
@@ -543,6 +550,7 @@ impl Game {
             (Color::Black, protected_squares_black),
         ])
     }
+
     fn pos_protected(&self, pos: Position, color: &Color) -> bool {
         let protected_positions: &Vec<Position> = if *color == Color::White {
             self.protected_squares[&Color::White].as_ref()
@@ -556,6 +564,7 @@ impl Game {
         }
         false
     }
+
     fn get_moves_in_one_direction<I1, I2>(
         &self,
         x_path: I1,
@@ -575,28 +584,25 @@ impl Game {
             let new_pos = pos.add((x, y));
             let obstacle = self.obstacles_in_one_move(new_pos);
 
-            if obstacle.is_some() {
-                match obstacle.unwrap() {
-                    Obstacle::OutOfBoundary => {
-                        break;
+            if let Some(obstacle) = obstacle {
+                match obstacle {
+                    Obstacle::Piece(obstacle_color)
+                        if get_protected || obstacle_color != piece.color =>
+                    {
+                        traversed_squares.push(new_pos);
+                        moves.push(Move {
+                            piece: piece.clone(),
+                            move_type: MoveType::Normal,
+                            from: pos,
+                            to: new_pos,
+                            traversed_squares: traversed_squares.clone(),
+                            captured_piece: self.board[&new_pos].clone(),
+                        });
                     }
-                    Obstacle::Piece(obstacle_color) => {
-                        if !get_protected && obstacle_color == piece.color {
-                            break;
-                        } else {
-                            traversed_squares.push(new_pos);
-                            moves.push(Move {
-                                piece: piece.clone(),
-                                move_type: MoveType::Normal,
-                                from: pos,
-                                to: new_pos,
-                                traversed_squares: traversed_squares.clone(),
-                                captured_piece: self.board[&new_pos].clone(),
-                            });
-                            break;
-                        }
-                    }
+                    _ => {}
                 }
+                // if there is an obstacle we cannot go further:
+                break;
             }
 
             traversed_squares.push(new_pos);
@@ -699,6 +705,7 @@ impl Game {
 
         moves
     }
+
     fn pieces_attacking_king(
         &self,
         filter_pinned: bool,
@@ -709,13 +716,13 @@ impl Game {
             for y in '1'..='8' {
                 let moves = self.possible_moves(Position(x, y), false, filter_pinned);
                 for mv in moves {
-                    if mv.captured_piece.is_some()
-                        && mv.captured_piece.unwrap().piece_type == PieceType::King
-                    {
-                        if mv.piece.color == Color::White {
-                            pieces_white.push((mv.piece, mv.traversed_squares));
-                        } else {
-                            pieces_black.push((mv.piece, mv.traversed_squares));
+                    if let Some(piece) = mv.captured_piece {
+                        if piece.piece_type == PieceType::King {
+                            if mv.piece.color == Color::White {
+                                pieces_white.push((mv.piece, mv.traversed_squares));
+                            } else {
+                                pieces_black.push((mv.piece, mv.traversed_squares));
+                            }
                         }
                     }
                 }
@@ -742,12 +749,13 @@ impl Game {
         !self.pieces_attacking_king[color].is_empty()
     }
 
+    #[allow(clippy::too_many_lines)]
     fn possible_moves(&self, pos: Position, get_protected: bool, filter_pinned: bool) -> Vec<Move> {
         if self.board[&pos].is_none() {
             return Vec::new();
         }
 
-        let piece = self.board[&pos].as_ref().unwrap();
+        let piece = self.board[&pos].as_ref().expect("Has been checked before.");
 
         if !get_protected
             && self.check(&piece.color)
@@ -962,26 +970,26 @@ impl Game {
                 }
 
                 // Enpassant
-                if !get_protected && !self.history.is_empty() {
-                    let last_move = self.history.last().unwrap();
-
-                    if last_move.piece.piece_type == PieceType::Pawn
-                        && (last_move.from.1 as i8 - last_move.to.1 as i8).abs() == 2
-                        && (last_move.to == pos.add((1, 0)) || last_move.to == pos.add((-1, 0)))
-                    {
-                        let new_pos = if last_move.to == pos.add((1, 0)) {
-                            pos.add((1, direction))
-                        } else {
-                            pos.add((-1, direction))
-                        };
-                        moves.push(Move {
-                            piece: piece.clone(),
-                            move_type: MoveType::Enpassant,
-                            from: pos,
-                            to: new_pos,
-                            traversed_squares: vec![pos, new_pos],
-                            captured_piece: self.board[&new_pos.add((0, -direction))].clone(),
-                        });
+                if !get_protected {
+                    if let Some(last_move) = self.history.last() {
+                        if last_move.piece.piece_type == PieceType::Pawn
+                            && (last_move.from.1 as i8 - last_move.to.1 as i8).abs() == 2
+                            && (last_move.to == pos.add((1, 0)) || last_move.to == pos.add((-1, 0)))
+                        {
+                            let new_pos = if last_move.to == pos.add((1, 0)) {
+                                pos.add((1, direction))
+                            } else {
+                                pos.add((-1, direction))
+                            };
+                            moves.push(Move {
+                                piece: piece.clone(),
+                                move_type: MoveType::Enpassant,
+                                from: pos,
+                                to: new_pos,
+                                traversed_squares: vec![pos, new_pos],
+                                captured_piece: self.board[&new_pos.add((0, -direction))].clone(),
+                            });
+                        }
                     }
                 }
             }
@@ -1007,6 +1015,7 @@ impl Game {
 
         moves
     }
+
     fn piece_is_not_pinned(&self, mv: &Move) -> bool {
         if mv.piece.piece_type == PieceType::King {
             true
@@ -1054,6 +1063,7 @@ impl Game {
             _ => None,
         }
     }
+
     fn get_board_array(&self) -> BoardArray {
         const INIT: Option<Piece> = None;
         let mut piece_array = [INIT; 64];
@@ -1079,6 +1089,7 @@ impl Game {
         }
         all_possible_moves
     }
+
     fn is_a_draw(&self) -> bool {
         if self.number_of_moves_without_captures_or_pawn_moves >= 50 {
             true

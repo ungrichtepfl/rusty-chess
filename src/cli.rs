@@ -7,7 +7,7 @@ use std::io;
 use std::io::BufRead;
 use std::process::exit;
 
-fn parse_input_move(std_input: &String) -> Result<UserInput, String> {
+fn parse_input_move(std_input: &str) -> Result<UserInput, String> {
     lazy_static! {
         static ref RE: Regex = Regex::new(
             r"(?:\s*)?([a-zA-Z])(?:\s*)?(\d)(?:\s*)?(?:-|->)?(?:\s*)?([a-zA-Z])(?:\s*)?(\d)(?:\s*)?"
