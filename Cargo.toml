@@ -16,3 +16,7 @@ exclude = ["example-code/*", ".gitignore"]
 regex = "1.5.5"
 lazy_static = "1.4.0"
 
+[[bin]]
+name = "rusty-chess-cli"
+path = "src/cli.rs"
+
