@@ -153,13 +153,13 @@ enum MoveType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct Move {
-    piece: Piece,
-    from: Position,
-    to: Position,
+pub struct Move {
+    pub piece: Piece,
+    pub from: Position,
+    pub to: Position,
+    pub captured_piece: Option<Piece>,
     move_type: MoveType,
     traversed_squares: Vec<Position>,
-    captured_piece: Option<Piece>,
 }
 
 impl fmt::Display for Move {
@@ -180,6 +180,7 @@ pub enum UserInput {
     Resign,
 }
 
+#[derive(Debug, Clone)]
 pub enum UserOutput {
     CheckMate,
     StaleMate,
@@ -466,6 +467,21 @@ impl Game {
                 unreachable!()
             }
         }
+    }
+
+    pub fn get_all_currently_valid_moves(&self) -> Vec<Move> {
+        let mut all_possible_moves: Vec<Move> = Vec::new();
+        for x in 'a'..='h' {
+            for y in '1'..='8' {
+                if let Some(piece) = &self.board[&Position(x, y)] {
+                    if piece.color == self.turn {
+                        all_possible_moves
+                            .append(self.possible_moves(Position(x, y), false, true).as_mut());
+                    }
+                }
+            }
+        }
+        all_possible_moves
     }
 }
 

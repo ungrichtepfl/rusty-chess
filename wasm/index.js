@@ -1,4 +1,4 @@
-import { Universe, Cell } from "rusty-chess-wasm";
+import { ChessGame, UserOutputWrapper } from "rusty-chess-wasm";
 import { memory } from "rusty-chess-wasm/rusty_chess_wasm_bg.wasm";
 
 function sleep(ms) {
@@ -7,25 +7,22 @@ function sleep(ms) {
 
 const CELL_SIZE = 5; // px
 const GRID_COLOR = "#CCCCCC";
-const DEAD_COLOR = "#FFFFFF";
-const ALIVE_COLOR = "#000000";
-const FPS = 30;
+const FPS = 3;
+const CHESS_BORD_COLS = 8;
+const CHESS_BOARD_ROWS = 8;
 
 const canvas = document.getElementById("rusty-chess-wasm-canvas");
-const cell_number_col = 64;
-const cell_number_row = 64;
-const universe = Universe.new(cell_number_col, cell_number_row);
-
+let chessGame = ChessGame.new();
 
 const padding = 1;
 const cell_space = CELL_SIZE + padding;
 
-canvas.height = cell_space * cell_number_row + padding;
-canvas.width = cell_space * cell_number_col + padding;
+canvas.height = cell_space * CHESS_BOARD_ROWS + padding;
+canvas.width = cell_space * CHESS_BORD_COLS + padding;
 
 const ctx = canvas.getContext("2d");
 
-const fps = new class {
+const fps = new (class {
   constructor() {
     this.fps = document.getElementById("fps");
     this.frames = [];
@@ -38,7 +35,7 @@ const fps = new class {
     const now = performance.now();
     const delta = now - this.lastFrameTimeStamp;
     this.lastFrameTimeStamp = now;
-    const fps = 1 / delta * 1000;
+    const fps = (1 / delta) * 1000;
 
     // Save only the latest 100 timings.
     this.frames.push(fps);
@@ -66,18 +63,18 @@ min of last 100 = ${Math.round(min)}
 max of last 100 = ${Math.round(max)}
 `.trim();
   }
-};
+})();
 
 function drawGrid() {
   ctx.beginPath();
   ctx.strokeStyle = GRID_COLOR;
 
-  for (let i = 0; i <= cell_number_col; i++) {
+  for (let i = 0; i <= CHESS_BORD_COLS; i++) {
     ctx.moveTo(i * cell_space + padding, 0);
     ctx.lineTo(i * cell_space + padding, canvas.height);
   }
 
-  for (let i = 0; i <= cell_number_row; i++) {
+  for (let i = 0; i <= CHESS_BOARD_ROWS; i++) {
     ctx.moveTo(0, i * cell_space + padding);
     ctx.lineTo(canvas.width, i * cell_space + padding);
   }
@@ -85,50 +82,24 @@ function drawGrid() {
 }
 
 function getIndex(row, column) {
-  return row * cell_number_col + column;
+  return row * CHESS_BORD_COLS + column;
 }
 
-const cellPtr = universe.cells();
-const cells = new Uint8Array(
-  memory.buffer,
-  cellPtr,
-  cell_number_row * cell_number_col
-);
-
 function drawCells() {
-
   ctx.beginPath();
-  ctx.fillStyle = DEAD_COLOR; // only set once very slow
-  for (let row = 0; row < cell_number_row; row++) {
-    for (let col = 0; col < cell_number_col; col++) {
-
-      const idx = getIndex(row, col);
-      if (cells[idx] !== Cell.Dead) {
-        continue;
-      }
-
-      ctx.fillRect(
-        col * cell_space + padding,
-        row * cell_space + padding,
-        CELL_SIZE,
-        CELL_SIZE
-      );
-    }
-  }
-
-  ctx.fillStyle = ALIVE_COLOR; // only set once very slow
-  for (let row = 0; row < cell_number_row; row++) {
-    for (let col = 0; col < cell_number_col; col++) {
-      const idx = getIndex(row, col);
-      if (cells[idx] !== Cell.Alive) {
-        continue;
-      }
-      ctx.fillRect(
-        col * cell_space + padding,
-        row * cell_space + padding,
-        CELL_SIZE,
-        CELL_SIZE
-      );
+  for (let row = 0; row < CHESS_BOARD_ROWS; row++) {
+    for (let col = 0; col < CHESS_BORD_COLS; col++) {
+      // const idx = getIndex(row, col);
+      // if (cells[idx] !== Cell.Dead) {
+      //   continue;
+      // }
+      //
+      // ctx.fillRect(
+      //   col * cell_space + padding,
+      //   row * cell_space + padding,
+      //   CELL_SIZE,
+      //   CELL_SIZE
+      // );
     }
   }
   ctx.stroke();
@@ -145,17 +116,17 @@ canvas.addEventListener("click", (event) => {
 
   const row = Math.min(
     Math.floor(canvasTop / (CELL_SIZE + padding)),
-    cell_number_row - 1
+    CHESS_BOARD_ROWS - 1
   );
   const col = Math.min(
     Math.floor(canvasLeft / (CELL_SIZE + padding)),
-    cell_number_col - 1
+    CHESS_BORD_COLS - 1
   );
 
-  universe.toggle_cell(row, col);
+  // chessGame.toggle_cell(row, col);
 
-  drawGrid();
-  drawCells();
+  // drawGrid();
+  // drawCells();
 });
 
 const playPauseButton = document.getElementById("play-pause");
@@ -163,6 +134,7 @@ const playPauseButton = document.getElementById("play-pause");
 let animationId = null;
 
 let paused = false;
+let finished = false;
 
 function isPaused() {
   return paused;
@@ -179,23 +151,63 @@ function pause() {
   cancelAnimationFrame(animationId);
 }
 
+function finish() {
+  finished = true;
+  pause();
+}
+
+function restart() {
+  finished = false;
+  chessGame = ChessGame.new();
+  play();
+}
+
 playPauseButton.addEventListener("click", (event) => {
-  if (isPaused()) {
+  if (finished) {
+    restart();
+  } else if (isPaused()) {
     play();
   } else {
     pause();
   }
 });
 
-function renderLoop() {
+const pre = document.getElementById("rusty-chess-wasm-pre");
 
+function renderLoop() {
   fps.render();
-  universe.tick();
+
+  pre.textContent = chessGame.render();
+  const userOutput = chessGame.play_randomly_aggressive();
+
+  if (userOutput?.is_check_mate()) {
+    console.log("CheckMate");
+    finish();
+    return;
+  } else if (userOutput?.is_stale_mate()) {
+    console.log("StaleMate");
+    finish();
+    return;
+  } else if (userOutput?.is_invalid_move()) {
+    console.log("InvalidMove");
+    finish();
+    return;
+  } else if (userOutput?.is_promotion()) {
+    position = userOutput?.promotion_pos();
+    console.log("Promotion: ", position);
+    finish();
+    return;
+  } else if (userOutput?.is_draw()) {
+    console.log("Draw");
+    finish();
+    return;
+  }
 
   drawGrid();
   drawCells();
+
   // animationId = requestAnimationFrame(renderLoop);
-  sleep(1000 * 1/FPS).then(() => {
+  sleep((1000 * 1) / FPS).then(() => {
     if (!isPaused()) {
       animationId = requestAnimationFrame(renderLoop);
     }

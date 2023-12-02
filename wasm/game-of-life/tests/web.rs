@@ -4,7 +4,7 @@
 
 use wasm_bindgen_test::*;
 
-use rusty_chess_wasm::Universe;
+use game_of_life_wasm::Universe;
 
 wasm_bindgen_test_configure!(run_in_browser);
 

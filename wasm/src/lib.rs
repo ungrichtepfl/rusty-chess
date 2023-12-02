@@ -1,163 +1,123 @@
 #[macro_use]
 mod utils;
 
-use std::fmt;
 use utils::set_panic_hook;
-
 use wasm_bindgen::prelude::*;
-#[wasm_bindgen]
-#[repr(u8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Cell {
-    Dead = 0,
-    Alive = 1,
-}
 
-impl Cell {
-    fn toggle(&mut self) {
-        *self = match *self {
-            Cell::Alive => Cell::Dead,
-            Cell::Dead => Cell::Alive,
-        }
-    }
+use rusty_chess_core::game::{Game, UserInput, UserOutput};
+
+#[wasm_bindgen]
+pub struct ChessGame {
+    game: Game,
 }
 
 #[wasm_bindgen]
-pub struct Universe {
-    width: u32,
-    height: u32,
-    cells: Vec<Cell>,
+extern "C" {
+    fn alert(msg: &str);
 }
 
-impl fmt::Display for Universe {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for line in self.cells.as_slice().chunks(self.width as usize) {
-            for &cell in line {
-                let symbol = match cell {
-                    Cell::Dead => '◻',
-                    Cell::Alive => '◼',
-                };
-                write!(f, "{}", symbol)?;
-            }
-            write!(f, "\n")?;
-        }
-
-        Ok(())
-    }
-}
-
-impl Universe {
-    fn get_index(&self, row: u32, column: u32) -> usize {
-        (row * self.width + column) as usize
-    }
-
-    fn live_neighbor_count(&self, row: u32, column: u32) -> u8 {
-        let mut count = 0;
-        debug_assert_ne!(self.height, 0);
-        debug_assert_ne!(self.width, 0);
-
-        for row_diff in [self.height - 1, 0, 1] {
-            for col_diff in [self.width - 1, 0, 1] {
-                if row_diff == 0 && col_diff == 0 {
-                    continue;
-                }
-                let new_row = ((row as u64 + row_diff as u64) % self.height as u64) as u32;
-                let new_col = ((column as u64 + col_diff as u64) % self.width as u64) as u32;
-                let neighbor_index = self.get_index(new_row, new_col);
-                count += self.cells[neighbor_index] as u8;
-            }
-        }
-        count
-    }
-
-    /// Get the dead and alive values of the entire universe.
-    pub fn get_cells(&self) -> &[Cell] {
-        &self.cells
-    }
-
-    /// Set cells to be alive in a universe by passing the row and column
-    /// of each cell as an array.
-    pub fn set_cells(&mut self, cells: &[(u32, u32)]) {
-        for (row, col) in cells.iter().cloned() {
-            let idx = self.get_index(row, col);
-            self.cells[idx] = Cell::Alive;
-        }
-    }
-
-    pub fn reset_cells(&mut self) {
-        self.cells = self.cells.iter().map(|_| Cell::Dead).collect();
-    }
-}
-/// Public methods, exported to JavaScript.
 #[wasm_bindgen]
-impl Universe {
-    pub fn tick(&mut self) {
-        let mut next = self.cells.clone();
+#[derive(Debug)]
+pub struct UserOutputWrapper(UserOutput);
 
-        for row in 0..self.height {
-            for col in 0..self.width {
-                let idx = self.get_index(row, col);
-                let cell = self.cells[idx];
-                let live_neighbors = self.live_neighbor_count(row, col);
+#[wasm_bindgen]
+#[derive(Debug)]
+pub struct PositionWrapper(pub char, pub char);
 
-                let next_cell = match (cell, live_neighbors) {
-                    // Rule 1: Any live cell with fewer than two live neighbours
-                    // dies, as if caused by underpopulation.
-                    (Cell::Alive, x) if x < 2 => Cell::Dead,
-                    // Rule 2: Any live cell with two or three live neighbours
-                    // lives on to the next generation.
-                    (Cell::Alive, 2) | (Cell::Alive, 3) => Cell::Alive,
-                    // Rule 3: Any live cell with more than three live
-                    // neighbours dies, as if by overpopulation.
-                    (Cell::Alive, x) if x > 3 => Cell::Dead,
-                    // Rule 4: Any dead cell with exactly three live neighbours
-                    // becomes a live cell, as if by reproduction.
-                    (Cell::Dead, 3) => Cell::Alive,
-                    // All other cells remain in the same state.
-                    (otherwise, _) => otherwise,
-                };
-
-                next[idx] = next_cell;
-            }
+#[wasm_bindgen]
+impl UserOutputWrapper {
+    pub fn is_check_mate(&self) -> bool {
+        match self.0 {
+            UserOutput::CheckMate => true,
+            _ => false,
         }
-
-        self.cells = next;
     }
 
-    pub fn toggle_cell(&mut self, row: u32, column: u32) {
-        let index = self.get_index(row, column);
-        self.cells[index].toggle();
+    pub fn is_stale_mate(&self) -> bool {
+        match self.0 {
+            UserOutput::StaleMate => true,
+            _ => false,
+        }
+    }
+    pub fn is_invalid_move(&self) -> bool {
+        match self.0 {
+            UserOutput::InvalidMove => true,
+            _ => false,
+        }
+    }
+    pub fn is_promotion(&self) -> bool {
+        match self.0 {
+            UserOutput::Promotion(_) => true,
+            _ => false,
+        }
+    }
+    pub fn promotion_pos(&self) -> Option<PositionWrapper> {
+        match self.0 {
+            UserOutput::Promotion(pos) => Some(PositionWrapper(pos.0, pos.1)),
+            _ => None,
+        }
+    }
+    pub fn is_draw(&self) -> bool {
+        match self.0 {
+            UserOutput::Draw => true,
+            _ => false,
+        }
     }
 
-    pub fn new(width: u32, height: u32) -> Universe {
+    pub fn to_string(&self) -> String {
+        match self.0 {
+            UserOutput::CheckMate => "CheckMate".to_string(),
+            UserOutput::StaleMate => "StaleMate".to_string(),
+            UserOutput::InvalidMove => "InvalidMove".to_string(),
+            UserOutput::Promotion(pos) => format!("Promotion ({},{})", pos.0, pos.1),
+            UserOutput::Draw => "Draw".to_string(),
+        }
+    }
+}
+
+#[wasm_bindgen]
+impl ChessGame {
+    pub fn new() -> ChessGame {
         set_panic_hook();
-        console_log!("Setting width to {width} and height to {height}.");
+        let game = Game::new();
 
-        assert_ne!(width, 0, "Universe width must be greater than zero!");
-        assert_ne!(height, 0, "Universe height must be greater than zero!");
+        ChessGame { game }
+    }
 
-        let cells = (0..width * height)
-            .map(|i| {
-                if i % 2 == 0 || i % 7 == 0 {
-                    Cell::Alive
-                } else {
-                    Cell::Dead
-                }
-            })
-            .collect();
+    pub fn play_move(
+        &mut self,
+        from1: char,
+        from2: char,
+        to1: char,
+        to2: char,
+    ) -> Option<UserOutputWrapper> {
+        self.game
+            .process_input(&UserInput::Move((from1, from2).into(), (to1, to2).into()))
+            .map(|x| UserOutputWrapper(x))
+    }
 
-        Universe {
-            width,
-            height,
-            cells,
+    pub fn play_randomly_aggressive(&mut self) -> Option<UserOutputWrapper> {
+        let possible_moves = self.game.get_all_currently_valid_moves();
+        if possible_moves.is_empty() {
+            console_log!("Something went wrong. Function was probably called after check mate or stale mate.");
+            return None;
         }
+        let move_to_play = match possible_moves.iter().find(|mv| mv.captured_piece.is_some()) {
+            Some(mv) => mv,
+            None => {
+                let random_index = (js_sys::Math::random() * (possible_moves.len() as f64 - 1.0))
+                    as usize;
+                &possible_moves[random_index]
+            },
+        };
+        console_log!("Move played {move_to_play}!");
+
+        self.game
+            .process_input(&UserInput::Move(move_to_play.from, move_to_play.to))
+            .map(|x| UserOutputWrapper(x))
     }
 
     pub fn render(&self) -> String {
-        self.to_string()
-    }
-
-    pub fn cells(&self) -> *const Cell {
-        self.cells.as_ptr()
+        self.game.to_string()
     }
 }
