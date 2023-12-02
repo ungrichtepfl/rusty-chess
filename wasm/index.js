@@ -9,11 +9,13 @@ const CELL_SIZE = 5; // px
 const GRID_COLOR = "#CCCCCC";
 const DEAD_COLOR = "#FFFFFF";
 const ALIVE_COLOR = "#000000";
+const FPS = 30;
 
 const canvas = document.getElementById("rusty-chess-wasm-canvas");
 const cell_number_col = 64;
 const cell_number_row = 64;
 const universe = Universe.new(cell_number_col, cell_number_row);
+
 
 const padding = 1;
 const cell_space = CELL_SIZE + padding;
@@ -22,6 +24,49 @@ canvas.height = cell_space * cell_number_row + padding;
 canvas.width = cell_space * cell_number_col + padding;
 
 const ctx = canvas.getContext("2d");
+
+const fps = new class {
+  constructor() {
+    this.fps = document.getElementById("fps");
+    this.frames = [];
+    this.lastFrameTimeStamp = performance.now();
+  }
+
+  render() {
+    // Convert the delta time since the last frame render into a measure
+    // of frames per second.
+    const now = performance.now();
+    const delta = now - this.lastFrameTimeStamp;
+    this.lastFrameTimeStamp = now;
+    const fps = 1 / delta * 1000;
+
+    // Save only the latest 100 timings.
+    this.frames.push(fps);
+    if (this.frames.length > 100) {
+      this.frames.shift();
+    }
+
+    // Find the max, min, and mean of our 100 latest timings.
+    let min = Infinity;
+    let max = -Infinity;
+    let sum = 0;
+    for (let i = 0; i < this.frames.length; i++) {
+      sum += this.frames[i];
+      min = Math.min(this.frames[i], min);
+      max = Math.max(this.frames[i], max);
+    }
+    let mean = sum / this.frames.length;
+
+    // Render the statistics.
+    this.fps.textContent = `
+Frames per Second:
+         latest = ${Math.round(fps)}
+avg of last 100 = ${Math.round(mean)}
+min of last 100 = ${Math.round(min)}
+max of last 100 = ${Math.round(max)}
+`.trim();
+  }
+};
 
 function drawGrid() {
   ctx.beginPath();
@@ -43,20 +88,41 @@ function getIndex(row, column) {
   return row * cell_number_col + column;
 }
 
+const cellPtr = universe.cells();
+const cells = new Uint8Array(
+  memory.buffer,
+  cellPtr,
+  cell_number_row * cell_number_col
+);
+
 function drawCells() {
-  const cellPtr = universe.cells();
-  const cells = new Uint8Array(
-    memory.buffer,
-    cellPtr,
-    cell_number_row * cell_number_col
-  );
 
   ctx.beginPath();
+  ctx.fillStyle = DEAD_COLOR; // only set once very slow
+  for (let row = 0; row < cell_number_row; row++) {
+    for (let col = 0; col < cell_number_col; col++) {
 
+      const idx = getIndex(row, col);
+      if (cells[idx] !== Cell.Dead) {
+        continue;
+      }
+
+      ctx.fillRect(
+        col * cell_space + padding,
+        row * cell_space + padding,
+        CELL_SIZE,
+        CELL_SIZE
+      );
+    }
+  }
+
+  ctx.fillStyle = ALIVE_COLOR; // only set once very slow
   for (let row = 0; row < cell_number_row; row++) {
     for (let col = 0; col < cell_number_col; col++) {
       const idx = getIndex(row, col);
-      ctx.fillStyle = cells[idx] === Cell.Dead ? DEAD_COLOR : ALIVE_COLOR;
+      if (cells[idx] !== Cell.Alive) {
+        continue;
+      }
       ctx.fillRect(
         col * cell_space + padding,
         row * cell_space + padding,
@@ -122,13 +188,14 @@ playPauseButton.addEventListener("click", (event) => {
 });
 
 function renderLoop() {
-  canvas.textContent = universe.render();
+
+  fps.render();
   universe.tick();
 
   drawGrid();
   drawCells();
   // animationId = requestAnimationFrame(renderLoop);
-  sleep(100).then(() => {
+  sleep(1000 * 1/FPS).then(() => {
     if (!isPaused()) {
       animationId = requestAnimationFrame(renderLoop);
     }

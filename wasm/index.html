@@ -4,6 +4,10 @@
     <meta charset="utf-8" />
     <title>Rusty-Chess</title>
     <style>
+      #fps {
+        white-space: pre;
+        font-family: monospace;
+      }
       body {
         position: absolute;
         top: 0;
@@ -15,11 +19,13 @@
         align-items: center;
         justify-content: center;
       }
+
     </style>
   </head>
 
   <body>
     <button id="play-pause"></button>
+    <div id="fps"></div>
     <canvas id="rusty-chess-wasm-canvas"></canvas>
     <script src="./bootstrap.js"></script>
   </body>
