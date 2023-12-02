@@ -119,6 +119,10 @@ impl Universe {
     pub fn render(&self) -> String {
         self.to_string()
     }
+
+    pub fn cells(&self) -> *const Cell {
+        self.cells.as_ptr()
+    }
 }
 
 #[wasm_bindgen]

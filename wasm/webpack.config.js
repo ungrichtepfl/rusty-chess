@@ -3,6 +3,9 @@ const CopyWebpackPlugin = require("copy-webpack-plugin");
 // Used to run wasm-pack from the webpack command before bundeling:
 const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
 const path = require("path");
+const toml = require("toml");
+require("toml-require").install({ toml: toml });
+const cargo = require("./Cargo.toml");
 
 module.exports = {
   entry: "./bootstrap.js",
@@ -15,10 +18,12 @@ module.exports = {
     new CopyWebpackPlugin(["index.html"]),
     new WasmPackPlugin({
       crateDirectory: path.resolve(__dirname, "."),
+      // This ensures that it has the same name as with running "wasm-pack build":
+      outName: cargo.package.name.replace(/-/g, "_"),
     }),
   ],
   // Webassembly is a experimental feature and has to be
-  // manually enabled
+  // manually enabled:
   experiments: {
     asyncWebAssembly: true,
     syncWebAssembly: true,
