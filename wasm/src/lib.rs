@@ -58,6 +58,24 @@ impl Universe {
         }
         count
     }
+
+    /// Get the dead and alive values of the entire universe.
+    pub fn get_cells(&self) -> &[Cell] {
+        &self.cells
+    }
+
+    /// Set cells to be alive in a universe by passing the row and column
+    /// of each cell as an array.
+    pub fn set_cells(&mut self, cells: &[(u32, u32)]) {
+        for (row, col) in cells.iter().cloned() {
+            let idx = self.get_index(row, col);
+            self.cells[idx] = Cell::Alive;
+        }
+    }
+
+    pub fn reset_cells(&mut self) {
+        self.cells = self.cells.iter().map(|_| Cell::Dead).collect();
+    }
 }
 /// Public methods, exported to JavaScript.
 #[wasm_bindgen]
@@ -123,14 +141,4 @@ impl Universe {
     pub fn cells(&self) -> *const Cell {
         self.cells.as_ptr()
     }
-}
-
-#[wasm_bindgen]
-extern "C" {
-    fn alert(s: &str);
-}
-
-#[wasm_bindgen]
-pub fn greet(who: &str) {
-    alert(&format!("Hello, {who}!"));
 }
