@@ -1,8 +1,10 @@
+#[macro_use]
 mod utils;
 
 use std::fmt;
-use wasm_bindgen::prelude::*;
+use utils::set_panic_hook;
 
+use wasm_bindgen::prelude::*;
 #[wasm_bindgen]
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -10,6 +12,7 @@ pub enum Cell {
     Dead = 0,
     Alive = 1,
 }
+
 
 #[wasm_bindgen]
 pub struct Universe {
@@ -114,8 +117,11 @@ impl Universe {
     }
 
     pub fn new(width: u32, height: u32) -> Universe {
-        assert_ne!(width, 0);
-        assert_ne!(height, 0);
+        set_panic_hook();
+        console_log!("Setting width to {width} and height to {height}.");
+
+        assert_ne!(width, 0, "Universe width must be greater than zero!");
+        assert_ne!(height, 0, "Universe height must be greater than zero!");
 
         let cells = (0..width * height)
             .map(|i| {

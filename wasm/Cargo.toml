@@ -6,6 +6,7 @@ rust-version = "1.57"
 description = "A chess engine written in Rust, compiled to WebAssembly."
 
 [lib]
+# rlib needed to run "normal" rust tests too
 crate-type = ["cdylib", "rlib"]
 
 [features]
@@ -18,6 +19,7 @@ wasm-bindgen = "0.2.89"
 # all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
 # code size when deploying.
 console_error_panic_hook = { version = "0.1.7", optional = true }
+web-sys = {version= "0.3.66", features = ["console"]}
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.39"
