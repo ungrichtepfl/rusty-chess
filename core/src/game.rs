@@ -83,8 +83,8 @@ enum Obstacle {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Piece {
-    piece_type: PieceType,
-    color: Color,
+    pub piece_type: PieceType,
+    pub color: Color,
 }
 
 impl fmt::Display for Piece {
@@ -482,6 +482,19 @@ impl Game {
             }
         }
         all_possible_moves
+    }
+     
+    pub fn get_board_array(&self) -> BoardArray {
+        const INIT: Option<Piece> = None;
+        let mut piece_array = [INIT; 64];
+        let mut idx = 0;
+        for x in 'a'..='h' {
+            for y in '1'..='8' {
+                piece_array[idx] = self.board[&Position(x, y)].clone();
+                idx += 1;
+            }
+        }
+        piece_array
     }
 }
 
@@ -1079,18 +1092,6 @@ impl Game {
         }
     }
 
-    fn get_board_array(&self) -> BoardArray {
-        const INIT: Option<Piece> = None;
-        let mut piece_array = [INIT; 64];
-        let mut idx = 0;
-        for x in 'a'..='h' {
-            for y in '1'..='8' {
-                piece_array[idx] = self.board[&Position(x, y)].clone();
-                idx += 1;
-            }
-        }
-        piece_array
-    }
 
     fn get_all_possible_moves(&self) -> Vec<Move> {
         let mut all_possible_moves: Vec<Move> = Vec::new();

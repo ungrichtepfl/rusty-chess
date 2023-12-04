@@ -15,13 +15,13 @@ module.exports = {
   },
   mode: "development",
   plugins: [
-    new CopyWebpackPlugin(["index.html"]),
+    new CopyWebpackPlugin(["index.html","assets/"]),
     new WasmPackPlugin({
       crateDirectory: path.resolve(__dirname, "."),
       // This ensures that it has the same name as with running "wasm-pack build":
       outName: cargo.package.name.replace(/-/g, "_"),
-      forceMode: "release",
-      // forceMode: "development"
+      // forceMode: "release",
+      forceMode: "development"
     }),
   ],
   // Webassembly is a experimental feature and has to be

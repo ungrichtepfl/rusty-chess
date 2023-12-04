@@ -1,24 +1,63 @@
-import { ChessGame, UserOutputWrapper } from "rusty-chess-wasm";
+import { ChessGame, Piece } from "rusty-chess-wasm";
 import { memory } from "rusty-chess-wasm/rusty_chess_wasm_bg.wasm";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-const CELL_SIZE = 5; // px
-const GRID_COLOR = "#CCCCCC";
-const FPS = 3;
+const CELL_SIZE = 80; // px
+const GRID_COLOR = "#000000";
+const BLACK_CELL_COLOR = "#999999";
+const WHITE_CELL_COLOR = "#FFFFFF";
+const FPS = 2;
 const CHESS_BORD_COLS = 8;
 const CHESS_BOARD_ROWS = 8;
 
+const bishop_b = new Image();
+bishop_b.src = "bishop-b.svg";
+const bishop_w = new Image();
+bishop_w.src = "bishop-w.svg";
+const king_b = new Image();
+king_b.src = "king-b.svg";
+const king_w = new Image();
+king_w.src = "king-w.svg";
+const knight_b = new Image();
+knight_b.src = "knight-b.svg";
+const knight_w = new Image();
+knight_w.src = "knight-w.svg";
+const pawn_b = new Image();
+pawn_b.src = "pawn-b.svg";
+const pawn_w = new Image();
+pawn_w.src = "pawn-w.svg";
+const queen_b = new Image();
+queen_b.src = "queen-b.svg";
+const queen_w = new Image();
+queen_w.src = "queen-w.svg";
+const rook_b = new Image();
+rook_b.src = "rook-b.svg";
+const rook_w = new Image();
+rook_w.src = "rook-w.svg";
+
 const canvas = document.getElementById("rusty-chess-wasm-canvas");
 let chessGame = ChessGame.new();
+let boardPtr = chessGame.get_game_board();
+let board = new Uint8Array(memory.buffer, boardPtr, 64);
+function print_board() {
+  let board_str = "";
+  for (let i = 0; i < 8; i++) {
+    for (let j = 0; j < 8; j++) {
+      const idx = getIndex(i, j);
+      board_str += board[idx] + " ";
+    }
+    board_str += "\n";
+  }
+  console.log(board_str);
+}
 
-const padding = 1;
-const cell_space = CELL_SIZE + padding;
+const cell_space = CELL_SIZE;
 
-canvas.height = cell_space * CHESS_BOARD_ROWS + padding;
-canvas.width = cell_space * CHESS_BORD_COLS + padding;
+canvas.height = cell_space * CHESS_BOARD_ROWS;
+canvas.width = cell_space * CHESS_BORD_COLS;
 
 const ctx = canvas.getContext("2d");
 
@@ -68,41 +107,97 @@ max of last 100 = ${Math.round(max)}
 function drawGrid() {
   ctx.beginPath();
   ctx.strokeStyle = GRID_COLOR;
+  ctx.lineWidth = 5;
 
-  for (let i = 0; i <= CHESS_BORD_COLS; i++) {
-    ctx.moveTo(i * cell_space + padding, 0);
-    ctx.lineTo(i * cell_space + padding, canvas.height);
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, canvas.height);
+  ctx.moveTo(canvas.width, 0);
+  ctx.lineTo(canvas.width, canvas.height);
+
+  ctx.moveTo(0, 0);
+  ctx.lineTo(canvas.width, 0);
+  ctx.moveTo(0, canvas.height);
+  ctx.lineTo(canvas.width, canvas.height);
+
+  ctx.fillStyle = BLACK_CELL_COLOR;
+  for (let i = 0; i < CHESS_BOARD_ROWS; i++) {
+    const start_idx = i % 2 ? 1 : 0;
+    for (let j = start_idx; j < CHESS_BORD_COLS; j += 2) {
+      ctx.fillRect(j * CELL_SIZE, i * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+    }
   }
-
-  for (let i = 0; i <= CHESS_BOARD_ROWS; i++) {
-    ctx.moveTo(0, i * cell_space + padding);
-    ctx.lineTo(canvas.width, i * cell_space + padding);
+  ctx.fillStyle = WHITE_CELL_COLOR;
+  for (let i = 0; i < CHESS_BOARD_ROWS; i++) {
+    const start_idx = i % 2 ? 0 : 1;
+    for (let j = start_idx; j < CHESS_BORD_COLS; j += 2) {
+      ctx.fillRect(j * CELL_SIZE, i * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+    }
   }
   ctx.stroke();
 }
 
 function getIndex(row, column) {
-  return row * CHESS_BORD_COLS + column;
+  row = 7 - row;
+  return column * 8 + row;
 }
 
-function drawCells() {
-  ctx.beginPath();
+function drawBoard() {
+  print_board();
   for (let row = 0; row < CHESS_BOARD_ROWS; row++) {
     for (let col = 0; col < CHESS_BORD_COLS; col++) {
-      // const idx = getIndex(row, col);
-      // if (cells[idx] !== Cell.Dead) {
-      //   continue;
-      // }
-      //
-      // ctx.fillRect(
-      //   col * cell_space + padding,
-      //   row * cell_space + padding,
-      //   CELL_SIZE,
-      //   CELL_SIZE
-      // );
+      const idx = getIndex(row, col);
+      const piece = board[idx];
+      let image = null;
+      switch (piece) {
+        case Piece.PawnBlack:
+          image = pawn_b;
+          break;
+        case Piece.PawnWhite:
+          image = pawn_w;
+          break;
+        case Piece.RookBlack:
+          image = rook_b;
+          break;
+        case Piece.RookWhite:
+          image = rook_w;
+          break;
+        case Piece.KnightBlack:
+          image = knight_b;
+          break;
+        case Piece.KnightWhite:
+          image = knight_w;
+          break;
+        case Piece.BishopBlack:
+          image = bishop_b;
+          break;
+        case Piece.BishopWhite:
+          image = bishop_w;
+          break;
+        case Piece.QueenBlack:
+          image = queen_b;
+          break;
+        case Piece.QueenWhite:
+          image = queen_w;
+          break;
+        case Piece.KingBlack:
+          image = king_b;
+          break;
+        case Piece.KingWhite:
+          image = king_w;
+          break;
+        default:
+          break;
+      }
+      image &&
+        ctx.drawImage(
+          image,
+          col * CELL_SIZE,
+          row * CELL_SIZE,
+          CELL_SIZE,
+          CELL_SIZE
+        );
     }
   }
-  ctx.stroke();
 }
 
 canvas.addEventListener("click", (event) => {
@@ -114,19 +209,9 @@ canvas.addEventListener("click", (event) => {
   const canvasLeft = (event.clientX - boundingRect.left) * scaleX;
   const canvasTop = (event.clientY - boundingRect.top) * scaleY;
 
-  const row = Math.min(
-    Math.floor(canvasTop / (CELL_SIZE + padding)),
-    CHESS_BOARD_ROWS - 1
-  );
-  const col = Math.min(
-    Math.floor(canvasLeft / (CELL_SIZE + padding)),
-    CHESS_BORD_COLS - 1
-  );
-
-  // chessGame.toggle_cell(row, col);
-
-  // drawGrid();
-  // drawCells();
+  const row = Math.min(Math.floor(canvasTop / CELL_SIZE), CHESS_BOARD_ROWS - 1);
+  const col = Math.min(Math.floor(canvasLeft / CELL_SIZE), CHESS_BORD_COLS - 1);
+  renderLoop(-Infinity);
 });
 
 const playPauseButton = document.getElementById("play-pause");
@@ -143,7 +228,7 @@ function isPaused() {
 function play() {
   paused = false;
   playPauseButton.textContent = "⏸";
-  renderLoop();
+  renderLoop(-Infinity);
 }
 function pause() {
   paused = true;
@@ -159,6 +244,8 @@ function finish() {
 function restart() {
   finished = false;
   chessGame = ChessGame.new();
+  boardPtr = chessGame.get_game_board();
+  board = new Uint8Array(memory.buffer, boardPtr, 64);
   play();
 }
 
@@ -173,12 +260,17 @@ playPauseButton.addEventListener("click", (event) => {
 });
 
 const pre = document.getElementById("rusty-chess-wasm-pre");
-
+let previous_timestamp = -Infinity;
 function renderLoop() {
   fps.render();
 
-  pre.textContent = chessGame.render();
+  // pre.textContent = chessGame.render();
   const userOutput = chessGame.play_randomly_aggressive();
+
+  boardPtr = chessGame.get_game_board();
+  board = new Uint8Array(memory.buffer, boardPtr, 64);
+  drawGrid();
+  drawBoard();
 
   if (userOutput?.is_check_mate()) {
     console.log("CheckMate");
@@ -193,7 +285,7 @@ function renderLoop() {
     finish();
     return;
   } else if (userOutput?.is_promotion()) {
-    position = userOutput?.promotion_pos();
+    const position = userOutput?.promotion_pos();
     console.log("Promotion: ", position);
     finish();
     return;
@@ -203,15 +295,13 @@ function renderLoop() {
     return;
   }
 
-  drawGrid();
-  drawCells();
-
-  // animationId = requestAnimationFrame(renderLoop);
   sleep((1000 * 1) / FPS).then(() => {
     if (!isPaused()) {
-      animationId = requestAnimationFrame(renderLoop);
+      renderLoop();
     }
   });
 }
 
+drawGrid();
+drawBoard();
 play();
