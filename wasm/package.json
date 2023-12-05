@@ -9,6 +9,7 @@
     "serve-dev": "webpack-dev-server"
   },
   "dependencies": {
+    "canvg": "^4.0.1",
     "rusty-chess-wasm": "file:./pkg"
   },
   "devDependencies": {

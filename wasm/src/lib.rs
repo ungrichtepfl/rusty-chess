@@ -6,6 +6,9 @@ use wasm_bindgen::prelude::*;
 
 use rusty_chess_core::game::{Game, PieceType,Color, UserInput, UserOutput};
 
+// Canvas in wasm
+// https://rustwasm.github.io/wasm-bindgen/examples/2d-canvas.html
+
 #[wasm_bindgen]
 pub struct ChessGame {
     game: Game,

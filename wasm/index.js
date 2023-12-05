@@ -1,6 +1,11 @@
 import { ChessGame, Piece } from "rusty-chess-wasm";
 import { memory } from "rusty-chess-wasm/rusty_chess_wasm_bg.wasm";
 
+// Interactive cube:
+// http://www.webglacademy.com/courses.php?courses=0_1_20_2_3_4_23_5_6_7_10#4
+// Drag and drop tutorial:
+// https://stackoverflow.com/questions/24926028/drag-and-drop-multiple-objects-in-html5-canvas
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
