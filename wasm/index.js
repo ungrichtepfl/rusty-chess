@@ -14,7 +14,7 @@ const CELL_SIZE = 80; // px
 const GRID_COLOR = "#000000";
 const BLACK_CELL_COLOR = "#999999";
 const WHITE_CELL_COLOR = "#FFFFFF";
-const FPS = 2;
+const FPS = 1;
 const CHESS_BORD_COLS = 8;
 const CHESS_BOARD_ROWS = 8;
 
@@ -142,8 +142,8 @@ function drawGrid() {
 }
 
 function getIndex(row, column) {
-  row = 7 - row;
-  return column * 8 + row;
+  row = CHESS_BOARD_ROWS - row - 1;
+  return row * 8 + column;
 }
 
 function drawBoard() {
@@ -270,8 +270,8 @@ function renderLoop() {
   fps.render();
 
   // pre.textContent = chessGame.render();
-  const userOutput = chessGame.play_randomly_aggressive();
-
+  // const userOutput = chessGame.play_randomly_aggressive();
+  const userOutput = chessGame.play_attacking_king();
   boardPtr = chessGame.get_game_board();
   board = new Uint8Array(memory.buffer, boardPtr, 64);
   drawGrid();
@@ -303,8 +303,8 @@ function renderLoop() {
 
   // sleep((1000 * 1) / FPS).then(() => {
   //   if (!isPaused()) {
-      // renderLoop();
-    // }
+  //     renderLoop();
+  //   }
   // });
 }
 

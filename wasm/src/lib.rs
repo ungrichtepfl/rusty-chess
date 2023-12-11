@@ -4,7 +4,7 @@ mod utils;
 use utils::set_panic_hook;
 use wasm_bindgen::prelude::*;
 
-use rusty_chess_core::game::{Game, PieceType,Color, UserInput, UserOutput};
+use rusty_chess_core::game::{Color, Game, PieceType, UserInput, UserOutput};
 
 // Canvas in wasm
 // https://rustwasm.github.io/wasm-bindgen/examples/2d-canvas.html
@@ -98,8 +98,8 @@ impl UserOutputWrapper {
     }
 }
 impl ChessGame {
-    fn update_game_board(&mut self)  {
-        for (i, piece) in self.game.get_board_array().iter().enumerate() {
+    fn update_game_board(&mut self) {
+        for (i, piece) in self.game.board.iter().enumerate() {
             if let Some(piece) = &piece {
                 let piece = match (&piece.piece_type, &piece.color) {
                     (PieceType::Pawn, Color::White) => Piece::PawnWhite,
@@ -114,7 +114,6 @@ impl ChessGame {
                     (PieceType::Queen, Color::Black) => Piece::QueenBlack,
                     (PieceType::King, Color::White) => Piece::KingWhite,
                     (PieceType::King, Color::Black) => Piece::KingBlack,
-                    
                 };
                 self.game_board[i] = piece;
             } else {
@@ -140,7 +139,7 @@ impl ChessGame {
 
         let mut chess_game = ChessGame { game, game_board };
         chess_game.update_game_board();
-        console_log!("{}",chess_game.game);
+        console_log!("{}", chess_game.game);
         chess_game
     }
 
@@ -158,6 +157,44 @@ impl ChessGame {
         self.update_game_board();
         user_output
     }
+
+
+    pub fn play_attacking_king(&mut self) -> Option<UserOutputWrapper> {
+        let possible_moves = self.game.get_all_currently_valid_moves();
+        if possible_moves.is_empty() {
+            console_log!("Something went wrong. Function was probably called after check mate or stale mate.");
+            return None;
+        }
+
+        let move_to_play = possible_moves
+            .iter()
+            .find(|mv| {
+                let mut game = self.game.clone();
+                match game.process_input(&UserInput::Move(mv.from, mv.to)) {
+                    Some(UserOutput::CheckMate) => true,
+                    _ => game.check(self.game.turn.invert()),
+                }
+            })
+            .unwrap_or_else(|| {
+                match possible_moves.iter().find(|mv| mv.captured_piece.is_some()) {
+                    Some(mv) => mv,
+                    None => {
+                        let random_index =
+                            (js_sys::Math::random() * (possible_moves.len() as f64 - 1.0)) as usize;
+                        &possible_moves[random_index]
+                    }
+                }
+            });
+
+        let user_output = self
+            .game
+            .process_input(&UserInput::Move(move_to_play.from, move_to_play.to))
+            .map(|x| UserOutputWrapper(x));
+        self.update_game_board();
+        console_log!("{}", self.game);
+        user_output
+    }
+
 
     pub fn play_randomly_aggressive(&mut self) -> Option<UserOutputWrapper> {
         let possible_moves = self.game.get_all_currently_valid_moves();

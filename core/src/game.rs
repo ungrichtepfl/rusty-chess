@@ -213,7 +213,7 @@ pub enum UserOutput {
 #[derive(Debug, Clone)]
 pub struct Game {
     pub turn: Color,
-    board: Board,
+    pub board: Board,
     captured: [Vec<Piece>; COLOR_COUNT],
     history: Vec<Move>,
     number_of_repeated_board_states: HashMap<(Color, Board, Vec<Move>), u8>,
@@ -321,9 +321,9 @@ impl Game {
             able_to_short_castle: able_to_castle,
         };
 
-        let board_array = game.get_board_array();
+        let board = game.board;
         let all_possible_moves = game.get_all_possible_moves();
-        let key = (game.turn, board_array, all_possible_moves);
+        let key = (game.turn, board, all_possible_moves);
 
         game.number_of_repeated_board_states.insert(key, 1);
 
@@ -424,10 +424,10 @@ impl Game {
 
                         self.history.push(mv);
 
-                        let board_array = self.get_board_array();
+                        let board = self.board;
                         let all_possible_moves = self.get_all_possible_moves();
 
-                        let key = (self.turn, board_array, all_possible_moves);
+                        let key = (self.turn, board, all_possible_moves);
                         if self.number_of_repeated_board_states.contains_key(&key) {
                             let num_pos = self.number_of_repeated_board_states[&key];
                             self.number_of_repeated_board_states
@@ -494,18 +494,9 @@ impl Game {
         all_possible_moves
     }
 
-    #[must_use]
-    pub fn get_board_array(&self) -> Board {
-        const INIT: Option<Piece> = None;
-        let mut piece_array = [INIT; 64];
-        let mut idx = 0;
-        for x in 'a'..='h' {
-            for y in '1'..='8' {
-                piece_array[idx] = self.board[Position(x, y).as_index()];
-                idx += 1;
-            }
-        }
-        piece_array
+    #[inline]
+    pub fn check(&self, color: Color) -> bool {
+        !self.pieces_attacking_king[color as usize].is_empty()
     }
 }
 
@@ -747,8 +738,8 @@ impl Game {
         &self,
         filter_pinned: bool,
     ) -> [Vec<(Piece, Vec<Position>)>; COLOR_COUNT] {
-        let mut pieces_white: Vec<(Piece, Vec<Position>)> = Vec::new();
-        let mut pieces_black: Vec<(Piece, Vec<Position>)> = Vec::new();
+        let mut pieces_attacking_white: Vec<(Piece, Vec<Position>)> = Vec::new();
+        let mut pieces_attacking_black: Vec<(Piece, Vec<Position>)> = Vec::new();
         for x in 'a'..='h' {
             for y in '1'..='8' {
                 let moves = self.possible_moves(Position(x, y), false, filter_pinned);
@@ -756,9 +747,9 @@ impl Game {
                     if let Some(piece) = mv.captured_piece {
                         if piece.piece_type == PieceType::King {
                             if mv.piece.color == Color::White {
-                                pieces_white.push((mv.piece, mv.traversed_squares));
+                                pieces_attacking_black.push((mv.piece, mv.traversed_squares));
                             } else {
-                                pieces_black.push((mv.piece, mv.traversed_squares));
+                                pieces_attacking_white.push((mv.piece, mv.traversed_squares));
                             }
                         }
                     }
@@ -766,7 +757,7 @@ impl Game {
             }
         }
 
-        [pieces_black, pieces_white]
+        [pieces_attacking_white, pieces_attacking_black]
     }
 
     fn no_possible_moves(&self, color: Color) -> bool {
@@ -779,11 +770,6 @@ impl Game {
             }
         }
         true
-    }
-
-    #[inline]
-    fn check(&self, color: Color) -> bool {
-        !self.pieces_attacking_king[color as usize].is_empty()
     }
 
     fn possbile_pawn_moves(&self, pos: Position, piece: Piece, get_protected: bool) -> Vec<Move> {
