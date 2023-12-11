@@ -299,12 +299,13 @@ function renderLoop() {
     finish();
     return;
   }
+  animationId = requestAnimationFrame(renderLoop);
 
-  sleep((1000 * 1) / FPS).then(() => {
-    if (!isPaused()) {
-      renderLoop();
-    }
-  });
+  // sleep((1000 * 1) / FPS).then(() => {
+  //   if (!isPaused()) {
+      // renderLoop();
+    // }
+  // });
 }
 
 drawGrid();

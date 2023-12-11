@@ -49,7 +49,7 @@ fn headless_chess() {
                 game.turn
             );
         }
-        previous_loop_turn = game.turn.clone();
+        previous_loop_turn = game.turn;
         let input_move = stdin.lock().lines().next().unwrap().unwrap();
         match parse_input_move(&input_move) {
             Err(e) => println!("{e}"),
@@ -79,7 +79,7 @@ fn headless_chess() {
                             println!("{game}");
                             println!("To what piece do you want to promote your pawn (Queen, Rook, Knight, Bishop)?");
                             let promotion_str = stdin.lock().lines().next().unwrap().unwrap();
-                            let color = game.turn.clone();
+                            let color = game.turn;
                             if promotion_str.contains("Queen") || promotion_str.contains("queen") {
                                 game.process_input(&UserInput::Promotion(
                                     Piece::new(PieceType::Queen, color),

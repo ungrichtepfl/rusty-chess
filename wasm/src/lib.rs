@@ -173,6 +173,7 @@ impl ChessGame {
                 &possible_moves[random_index]
             }
         };
+        console_log!("{move_to_play}");
 
         let user_output = self
             .game

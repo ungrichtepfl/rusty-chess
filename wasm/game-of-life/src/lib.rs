@@ -39,7 +39,7 @@ impl fmt::Display for Universe {
                 };
                 write!(f, "{}", symbol)?;
             }
-            write!(f, "\n")?;
+            writeln!(f)?;
         }
 
         Ok(())
@@ -61,8 +61,8 @@ impl Universe {
                 if row_diff == 0 && col_diff == 0 {
                     continue;
                 }
-                let new_row = ((row as u64 + row_diff as u64) % self.height as u64) as u32;
-                let new_col = ((column as u64 + col_diff as u64) % self.width as u64) as u32;
+                let new_row = ((u64::from(row) + u64::from(row_diff)) % u64::from(self.height)) as u32;
+                let new_col = ((u64::from(column) + u64::from(col_diff)) % u64::from(self.width)) as u32;
                 let neighbor_index = self.get_index(new_row, new_col);
                 count += self.cells[neighbor_index] as u8;
             }
@@ -71,14 +71,14 @@ impl Universe {
     }
 
     /// Get the dead and alive values of the entire universe.
-    pub fn get_cells(&self) -> &[Cell] {
+    #[must_use] pub fn get_cells(&self) -> &[Cell] {
         &self.cells
     }
 
     /// Set cells to be alive in a universe by passing the row and column
     /// of each cell as an array.
     pub fn set_cells(&mut self, cells: &[(u32, u32)]) {
-        for (row, col) in cells.iter().cloned() {
+        for (row, col) in cells.iter().copied() {
             let idx = self.get_index(row, col);
             self.cells[idx] = Cell::Alive;
         }
@@ -106,7 +106,7 @@ impl Universe {
                     (Cell::Alive, x) if x < 2 => Cell::Dead,
                     // Rule 2: Any live cell with two or three live neighbours
                     // lives on to the next generation.
-                    (Cell::Alive, 2) | (Cell::Alive, 3) => Cell::Alive,
+                    (Cell::Alive, 2 | 3) => Cell::Alive,
                     // Rule 3: Any live cell with more than three live
                     // neighbours dies, as if by overpopulation.
                     (Cell::Alive, x) if x > 3 => Cell::Dead,
@@ -129,7 +129,7 @@ impl Universe {
         self.cells[index].toggle();
     }
 
-    pub fn new(width: u32, height: u32) -> Universe {
+    #[must_use] pub fn new(width: u32, height: u32) -> Universe {
         set_panic_hook();
         console_log!("Setting width to {width} and height to {height}.");
 
@@ -153,11 +153,11 @@ impl Universe {
         }
     }
 
-    pub fn render(&self) -> String {
+    #[must_use] pub fn render(&self) -> String {
         self.to_string()
     }
 
-    pub fn cells(&self) -> *const Cell {
+    #[must_use] pub fn cells(&self) -> *const Cell {
         self.cells.as_ptr()
     }
 }

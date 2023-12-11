@@ -7,6 +7,7 @@ pub enum Color {
     White,
     Black,
 }
+const COLOR_COUNT: usize = 2;
 
 impl Color {
     #[must_use]
@@ -62,8 +63,22 @@ impl Position {
 
         Position(new_x, new_y)
     }
-}
 
+    #[inline]
+    fn as_index(self: Position) -> usize {
+        let x = self.0 as u8 - b'a';
+        let y = self.1 as u8 - b'1';
+        (y as usize) * BOARD_SIZE + (x as usize)
+    }
+
+    #[inline]
+    fn try_as_index(self: Position) -> Option<usize> {
+        if self.0 < 'a' || self.0 > 'h' || self.1 < '1' || self.1 > '8' {
+            return None;
+        }
+        Some(self.as_index())
+    }
+}
 impl From<(char, char)> for Position {
     fn from(val: (char, char)) -> Self {
         Position(val.0, val.1)
@@ -75,8 +90,9 @@ impl From<(&char, &char)> for Position {
         Position(*val.0, *val.1)
     }
 }
-
-type BoardArray = [Option<Piece>; 64];
+const BOARD_SIZE: usize = 8;
+const TOTAL_SQUARES: usize = BOARD_SIZE * BOARD_SIZE;
+type Board = [Option<Piece>; TOTAL_SQUARES];
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Obstacle {
@@ -197,15 +213,15 @@ pub enum UserOutput {
 #[derive(Debug, Clone)]
 pub struct Game {
     pub turn: Color,
-    board: HashMap<Position, Option<Piece>>,
-    captured: HashMap<Color, Vec<Piece>>,
+    board: Board,
+    captured: [Vec<Piece>; COLOR_COUNT],
     history: Vec<Move>,
-    number_of_repeated_board_states: HashMap<(Color, BoardArray, Vec<Move>), u8>,
+    number_of_repeated_board_states: HashMap<(Color, Board, Vec<Move>), u8>,
     number_of_moves_without_captures_or_pawn_moves: u8,
-    able_to_long_castle: HashMap<Color, bool>,
-    able_to_short_castle: HashMap<Color, bool>,
-    protected_squares: HashMap<Color, Vec<Position>>,
-    pieces_attacking_king: HashMap<Color, Vec<(Piece, Vec<Position>)>>,
+    able_to_long_castle: [bool; COLOR_COUNT],
+    able_to_short_castle: [bool; COLOR_COUNT],
+    protected_squares: [Vec<Position>; COLOR_COUNT],
+    pieces_attacking_king: [Vec<(Piece, Vec<Position>)>; COLOR_COUNT],
 }
 
 impl fmt::Display for Game {
@@ -220,7 +236,7 @@ impl fmt::Display for Game {
         for y in ('1'..='8').rev() {
             res.push_str(format!("{y} | ").as_str());
             for x in 'a'..='h' {
-                match &self.board[&Position(x, y)] {
+                match &self.board[Position(x, y).as_index()] {
                     None => res.push_str("  | "),
                     Some(piece) => res.push_str(format!("{piece} | ").as_str()),
                 }
@@ -251,7 +267,7 @@ impl Default for Game {
 impl Game {
     #[must_use]
     pub fn new() -> Game {
-        let mut board: HashMap<Position, Option<Piece>> = HashMap::new();
+        let mut board: Board = [None; TOTAL_SQUARES];
         for x in 'a'..='h' {
             for y in '1'..='8' {
                 let piece = match (x, y) {
@@ -269,12 +285,12 @@ impl Game {
                     ('e', '8') => Some(Piece::new(PieceType::King, Color::Black)),
                     _ => None,
                 };
-                board.insert(Position(x, y), piece);
+                board[Position(x, y).as_index()] = piece;
             }
         }
-        let captured: HashMap<Color, Vec<Piece>> = HashMap::new();
-        let history: Vec<Move> = Vec::new();
-        let able_to_castle = HashMap::from([(Color::White, true), (Color::Black, true)]);
+        let captured = [Vec::new(), Vec::new()];
+        let history = Vec::new();
+        let able_to_castle = [true, true];
         let mut protected_squares_white: Vec<Position> = Vec::new();
         let mut protected_squares_black: Vec<Position> = Vec::new();
         for x in 'a'..='h' {
@@ -288,13 +304,9 @@ impl Game {
             }
         }
 
-        let protected_squares = HashMap::from([
-            (Color::White, protected_squares_white),
-            (Color::Black, protected_squares_black),
-        ]);
+        let protected_squares = [protected_squares_white, protected_squares_black];
 
-        let pieces_attacking_king =
-            HashMap::from([(Color::White, Vec::new()), (Color::Black, Vec::new())]);
+        let pieces_attacking_king = [Vec::new(), Vec::new()];
 
         let mut game = Game {
             turn: Color::White,
@@ -305,7 +317,7 @@ impl Game {
             pieces_attacking_king,
             number_of_moves_without_captures_or_pawn_moves: 0,
             number_of_repeated_board_states: HashMap::new(),
-            able_to_long_castle: able_to_castle.clone(),
+            able_to_long_castle: able_to_castle,
             able_to_short_castle: able_to_castle,
         };
 
@@ -329,16 +341,16 @@ impl Game {
                             && (mv.to.1 == '8' || mv.to.1 == '1')
                         {
                             // update position
-                            self.board.insert(*from, None);
-                            self.board.insert(*to, Some(mv.piece));
+                            self.board[from.as_index()] = None;
+                            self.board[to.as_index()] = Some(mv.piece);
                             self.history.push(mv.clone());
                             return Some(UserOutput::Promotion(mv.to));
                         }
 
                         self.turn = self.turn.invert();
                         // update position
-                        self.board.insert(*from, None);
-                        self.board.insert(*to, Some(mv.piece));
+                        self.board[from.as_index()] = None;
+                        self.board[to.as_index()] = Some(mv.piece);
 
                         if mv.move_type == MoveType::Enpassant {
                             let direction = if mv.piece.color == Color::White {
@@ -346,36 +358,28 @@ impl Game {
                             } else {
                                 -1
                             };
-                            self.board.insert(mv.to.add((0, -direction)), None);
+                            self.board[mv.to.add((0, -direction)).as_index()] = None;
                         }
                         if mv.move_type == MoveType::LongCastle {
                             if mv.piece.color == Color::White {
-                                self.board.insert(Position('a', '1'), None);
-                                self.board.insert(
-                                    Position('d', '1'),
-                                    Some(Piece::new(PieceType::Rook, Color::White)),
-                                );
+                                self.board[Position('a', '1').as_index()] = None;
+                                self.board[Position('d', '1').as_index()] =
+                                    Some(Piece::new(PieceType::Rook, Color::White));
                             } else {
-                                self.board.insert(Position('a', '8'), None);
-                                self.board.insert(
-                                    Position('d', '8'),
-                                    Some(Piece::new(PieceType::Rook, Color::Black)),
-                                );
+                                self.board[Position('a', '8').as_index()] = None;
+                                self.board[Position('d', '8').as_index()] =
+                                    Some(Piece::new(PieceType::Rook, Color::Black));
                             }
                         }
                         if mv.move_type == MoveType::ShortCastle {
                             if mv.piece.color == Color::White {
-                                self.board.insert(Position('h', '1'), None);
-                                self.board.insert(
-                                    Position('f', '1'),
-                                    Some(Piece::new(PieceType::Rook, Color::White)),
-                                );
+                                self.board[Position('h', '1').as_index()] = None;
+                                self.board[Position('f', '1').as_index()] =
+                                    Some(Piece::new(PieceType::Rook, Color::White));
                             } else {
-                                self.board.insert(Position('h', '8'), None);
-                                self.board.insert(
-                                    Position('f', '8'),
-                                    Some(Piece::new(PieceType::Rook, Color::Black)),
-                                );
+                                self.board[Position('h', '8').as_index()] = None;
+                                self.board[Position('f', '8').as_index()] =
+                                    Some(Piece::new(PieceType::Rook, Color::Black));
                             }
                         }
                         // FIXME: circular relationship in those function. Dirty fix was used by checking bool get_protected when checking if check
@@ -384,19 +388,16 @@ impl Game {
                         self.pieces_attacking_king = self.pieces_attacking_king(true);
 
                         if let Some(captured_piece) = mv.captured_piece {
-                            self.captured
-                                .entry(mv.piece.color)
-                                .or_default()
-                                .push(captured_piece);
+                            self.captured[mv.piece.color as usize].push(captured_piece);
                         }
                         if (mv.piece.piece_type == PieceType::King
                             || mv.piece.piece_type == PieceType::Rook)
-                            && (self.able_to_long_castle[&mv.piece.color]
-                                || self.able_to_short_castle[&mv.piece.color])
+                            && (self.able_to_long_castle[mv.piece.color as usize]
+                                || self.able_to_short_castle[mv.piece.color as usize])
                         {
                             if mv.piece.piece_type == PieceType::King {
-                                self.able_to_short_castle.insert(mv.piece.color, false);
-                                self.able_to_long_castle.insert(mv.piece.color, false);
+                                self.able_to_short_castle[mv.piece.color as usize] = false;
+                                self.able_to_long_castle[mv.piece.color as usize] = false;
                             } else {
                                 let long_caste_pos: Position = if mv.piece.color == Color::White {
                                     Position('a', '1')
@@ -409,9 +410,9 @@ impl Game {
                                     Position('h', '8')
                                 };
                                 if mv.from == long_caste_pos {
-                                    self.able_to_long_castle.insert(mv.piece.color, false);
+                                    self.able_to_long_castle[mv.piece.color as usize] = false;
                                 } else if mv.from == short_caste_pos {
-                                    self.able_to_short_castle.insert(mv.piece.color, false);
+                                    self.able_to_short_castle[mv.piece.color as usize] = false;
                                 }
                             }
                         }
@@ -454,7 +455,7 @@ impl Game {
             }
             UserInput::Promotion(piece, pos) => {
                 self.turn = self.turn.invert();
-                self.board.insert(*pos, Some(*piece));
+                self.board[pos.as_index()] = Some(*piece);
 
                 // FIXME: circular relationship in those function. Dirty fix was used by checking bool get_protected when checking if check
                 //  get_all_protected_squares has to be run before pieces_attacking_king right now
@@ -482,7 +483,7 @@ impl Game {
         let mut all_possible_moves: Vec<Move> = Vec::new();
         for x in 'a'..='h' {
             for y in '1'..='8' {
-                if let Some(piece) = &self.board[&Position(x, y)] {
+                if let Some(piece) = &self.board[Position(x, y).as_index()] {
                     if piece.color == self.turn {
                         all_possible_moves
                             .append(self.possible_moves(Position(x, y), false, true).as_mut());
@@ -494,13 +495,13 @@ impl Game {
     }
 
     #[must_use]
-    pub fn get_board_array(&self) -> BoardArray {
+    pub fn get_board_array(&self) -> Board {
         const INIT: Option<Piece> = None;
         let mut piece_array = [INIT; 64];
         let mut idx = 0;
         for x in 'a'..='h' {
             for y in '1'..='8' {
-                piece_array[idx] = self.board[&Position(x, y)];
+                piece_array[idx] = self.board[Position(x, y).as_index()];
                 idx += 1;
             }
         }
@@ -511,13 +512,14 @@ impl Game {
 // NOTE: all the private functions are used by the game logic
 impl Game {
     fn obstacles_in_one_move(&self, pos: Position) -> Option<Obstacle> {
-        match self.board.get(&pos) {
-            // out of boundary
-            None => Some(Obstacle::OutOfBoundary),
+        let Some(index) = pos.try_as_index() else {
+            return Some(Obstacle::OutOfBoundary);
+        };
+        match self.board[index] {
             // no piece there: good
-            Some(None) => None,
+            None => None,
             // cannot be same color and if you want to get protected any piece is an obstacle
-            Some(Some(p)) => Some(Obstacle::Piece(p.color)),
+            Some(p) => Some(Obstacle::Piece(p.color)),
         }
     }
 
@@ -525,17 +527,17 @@ impl Game {
         match color {
             Color::Black => {
                 !self.check(color)
-                    && self.able_to_short_castle[&color]
-                    && self.board[&Position('f', '8')].is_none()
-                    && self.board[&Position('g', '8')].is_none()
+                    && self.able_to_short_castle[color as usize]
+                    && self.board[Position('f', '8').as_index()].is_none()
+                    && self.board[Position('g', '8').as_index()].is_none()
                     && !self.pos_protected(Position('f', '8'), color.invert())
                     && !self.pos_protected(Position('g', '8'), color.invert())
             }
             Color::White => {
                 !self.check(color)
-                    && self.able_to_short_castle[&color]
-                    && self.board[&Position('f', '1')].is_none()
-                    && self.board[&Position('g', '1')].is_none()
+                    && self.able_to_short_castle[color as usize]
+                    && self.board[Position('f', '1').as_index()].is_none()
+                    && self.board[Position('g', '1').as_index()].is_none()
                     && !self.pos_protected(Position('f', '1'), color.invert())
                     && !self.pos_protected(Position('g', '1'), color.invert())
             }
@@ -546,31 +548,31 @@ impl Game {
         match color {
             Color::Black => {
                 !self.check(color)
-                    && self.able_to_long_castle[&color]
-                    && self.board[&Position('b', '8')].is_none()
-                    && self.board[&Position('c', '8')].is_none()
-                    && self.board[&Position('d', '8')].is_none()
+                    && self.able_to_long_castle[color as usize]
+                    && self.board[Position('b', '8').as_index()].is_none()
+                    && self.board[Position('c', '8').as_index()].is_none()
+                    && self.board[Position('d', '8').as_index()].is_none()
                     && !self.pos_protected(Position('c', '8'), color.invert())
                     && !self.pos_protected(Position('d', '8'), color.invert())
             }
             Color::White => {
                 !self.check(color)
-                    && self.able_to_long_castle[&color]
-                    && self.board[&Position('b', '1')].is_none()
-                    && self.board[&Position('c', '1')].is_none()
-                    && self.board[&Position('d', '1')].is_none()
+                    && self.able_to_long_castle[color as usize]
+                    && self.board[Position('b', '1').as_index()].is_none()
+                    && self.board[Position('c', '1').as_index()].is_none()
+                    && self.board[Position('d', '1').as_index()].is_none()
                     && !self.pos_protected(Position('c', '1'), color.invert())
                     && !self.pos_protected(Position('d', '1'), color.invert())
             }
         }
     }
 
-    fn get_all_protected_squares(&self, filter_pinned: bool) -> HashMap<Color, Vec<Position>> {
+    fn get_all_protected_squares(&self, filter_pinned: bool) -> [Vec<Position>; COLOR_COUNT] {
         let mut protected_squares_white: Vec<Position> = Vec::new();
         let mut protected_squares_black: Vec<Position> = Vec::new();
         for x in 'a'..='h' {
             for y in '1'..='8' {
-                if let Some(piece) = &self.board[&Position(x, y)] {
+                if let Some(piece) = &self.board[Position(x, y).as_index()] {
                     let possible_moves = self.possible_moves(Position(x, y), true, filter_pinned);
                     for m in possible_moves {
                         if piece.color == Color::White {
@@ -583,17 +585,14 @@ impl Game {
             }
         }
 
-        HashMap::from([
-            (Color::White, protected_squares_white),
-            (Color::Black, protected_squares_black),
-        ])
+        [protected_squares_white, protected_squares_black]
     }
 
     fn pos_protected(&self, pos: Position, color: Color) -> bool {
         let protected_positions: &Vec<Position> = if color == Color::White {
-            self.protected_squares[&Color::White].as_ref()
+            self.protected_squares[Color::White as usize].as_ref()
         } else {
-            self.protected_squares[&Color::Black].as_ref()
+            self.protected_squares[Color::Black as usize].as_ref()
         };
         for pos_protected in protected_positions {
             if pos == *pos_protected {
@@ -634,7 +633,7 @@ impl Game {
                             from: pos,
                             to: new_pos,
                             traversed_squares: traversed_squares.clone(),
-                            captured_piece: self.board[&new_pos],
+                            captured_piece: self.board[new_pos.as_index()],
                         });
                     }
                     _ => {}
@@ -650,7 +649,7 @@ impl Game {
                 from: pos,
                 to: new_pos,
                 traversed_squares: traversed_squares.clone(),
-                captured_piece: self.board[&new_pos],
+                captured_piece: self.board[new_pos.as_index()],
             });
         }
         moves
@@ -747,7 +746,7 @@ impl Game {
     fn pieces_attacking_king(
         &self,
         filter_pinned: bool,
-    ) -> HashMap<Color, Vec<(Piece, Vec<Position>)>> {
+    ) -> [Vec<(Piece, Vec<Position>)>; COLOR_COUNT] {
         let mut pieces_white: Vec<(Piece, Vec<Position>)> = Vec::new();
         let mut pieces_black: Vec<(Piece, Vec<Position>)> = Vec::new();
         for x in 'a'..='h' {
@@ -767,7 +766,7 @@ impl Game {
             }
         }
 
-        HashMap::from([(Color::White, pieces_black), (Color::Black, pieces_white)])
+        [pieces_black, pieces_white]
     }
 
     fn no_possible_moves(&self, color: Color) -> bool {
@@ -784,7 +783,7 @@ impl Game {
 
     #[inline]
     fn check(&self, color: Color) -> bool {
-        !self.pieces_attacking_king[&color].is_empty()
+        !self.pieces_attacking_king[color as usize].is_empty()
     }
 
     fn possbile_pawn_moves(&self, pos: Position, piece: Piece, get_protected: bool) -> Vec<Move> {
@@ -802,15 +801,15 @@ impl Game {
         if !get_protected {
             for y in rel_pos_to_iter {
                 let new_pos = pos.add((0, direction * y));
-                match self.board.get(&new_pos) {
-                    Some(None) => {
+                match self.obstacles_in_one_move(new_pos) {
+                    None => {
                         moves.push(Move {
                             piece,
                             move_type: MoveType::Normal,
                             from: pos,
                             to: new_pos,
                             traversed_squares: vec![pos, new_pos],
-                            captured_piece: self.board[&new_pos],
+                            captured_piece: self.board[new_pos.as_index()],
                         });
                     }
                     _ => {
@@ -823,20 +822,20 @@ impl Game {
         // check if able to capture a piece
         for new_pos_int in [(1, direction), (-1, direction)] {
             let new_pos = pos.add(new_pos_int);
-            match self.board.get(&new_pos) {
-                Some(Some(other_piece)) => {
-                    if get_protected || other_piece.color != piece.color {
+            match self.obstacles_in_one_move(new_pos) {
+                Some(Obstacle::Piece(other_piece_color)) => {
+                    if get_protected || other_piece_color != piece.color {
                         moves.push(Move {
                             piece,
                             move_type: MoveType::Normal,
                             from: pos,
                             to: new_pos,
                             traversed_squares: vec![pos, new_pos],
-                            captured_piece: self.board[&new_pos],
+                            captured_piece: self.board[new_pos.as_index()],
                         });
                     }
                 }
-                Some(None) => {
+                None => {
                     if get_protected {
                         moves.push(Move {
                             piece,
@@ -844,11 +843,11 @@ impl Game {
                             from: pos,
                             to: new_pos,
                             traversed_squares: vec![pos, new_pos],
-                            captured_piece: self.board[&new_pos],
+                            captured_piece: self.board[new_pos.as_index()],
                         });
                     }
                 }
-                None => {} // do nothing
+                Some(Obstacle::OutOfBoundary) => {} // do nothing
             }
         }
 
@@ -870,7 +869,7 @@ impl Game {
                         from: pos,
                         to: new_pos,
                         traversed_squares: vec![pos, new_pos],
-                        captured_piece: self.board[&new_pos.add((0, -direction))],
+                        captured_piece: self.board[new_pos.add((0, -direction)).as_index()],
                     });
                 }
             }
@@ -902,7 +901,7 @@ impl Game {
                         from: pos,
                         to: new_pos,
                         traversed_squares: vec![pos, new_pos],
-                        captured_piece: self.board[&new_pos],
+                        captured_piece: self.board[new_pos.as_index()],
                     });
                 }
                 Some(Obstacle::Piece(obstacle_color)) => {
@@ -913,7 +912,7 @@ impl Game {
                             from: pos,
                             to: new_pos,
                             traversed_squares: vec![pos, new_pos],
-                            captured_piece: self.board[&new_pos],
+                            captured_piece: self.board[new_pos.as_index()],
                         });
                     }
                 }
@@ -962,7 +961,7 @@ impl Game {
                             from: pos,
                             to: new_pos,
                             traversed_squares: vec![pos, new_pos],
-                            captured_piece: self.board[&new_pos],
+                            captured_piece: self.board[new_pos.as_index()],
                         });
                     }
                 }
@@ -977,7 +976,7 @@ impl Game {
                             from: pos,
                             to: new_pos,
                             traversed_squares: vec![pos, new_pos],
-                            captured_piece: self.board[&new_pos],
+                            captured_piece: self.board[new_pos.as_index()],
                         });
                     }
                 }
@@ -994,7 +993,7 @@ impl Game {
                 from: pos,
                 to: pos.add((-2, 0)),
                 traversed_squares: vec![pos, pos.add((-1, 0)), pos.add((-2, 0))],
-                captured_piece: self.board[&pos.add((-2, 0))],
+                captured_piece: self.board[pos.add((-2, 0)).as_index()],
             });
         }
         if !get_protected && self.can_short_castle(piece.color) {
@@ -1004,21 +1003,21 @@ impl Game {
                 from: pos,
                 to: pos.add((2, 0)),
                 traversed_squares: vec![pos, pos.add((1, 0)), pos.add((2, 0))],
-                captured_piece: self.board[&pos.add((2, 0))],
+                captured_piece: self.board[pos.add((2, 0)).as_index()],
             });
         }
         moves
     }
 
     fn possible_moves(&self, pos: Position, get_protected: bool, filter_pinned: bool) -> Vec<Move> {
-        let Some(piece) = self.board[&pos] else {
+        let Some(piece) = self.board[pos.as_index()] else {
             // no piece there -> no moves
             return Vec::new();
         };
 
         if !get_protected
             && self.check(piece.color)
-            && self.pieces_attacking_king[&piece.color].len() > 1
+            && self.pieces_attacking_king[piece.color as usize].len() > 1
             && piece.piece_type != PieceType::King
         {
             // double check: only king can move
@@ -1043,10 +1042,10 @@ impl Game {
             // filter out moves that do not protect the king. Only for pieces other than the king.
             debug_assert_eq!(
                 1,
-                self.pieces_attacking_king[&piece.color].len(),
+                self.pieces_attacking_king[piece.color as usize].len(),
                 "More than one piece attacking the king"
             );
-            let (_, pos) = self.pieces_attacking_king[&piece.color][0].clone();
+            let (_, pos) = self.pieces_attacking_king[piece.color as usize][0].clone();
             moves = moves.drain(..).filter(|x| pos.contains(&x.to)).collect();
         }
 
@@ -1067,28 +1066,26 @@ impl Game {
             let mut game_after_move = self.clone();
             game_after_move.turn = game_after_move.turn.invert();
             // update position
-            game_after_move.board.insert(mv.from, None);
-            game_after_move.board.insert(mv.to, Some(mv.piece));
+            game_after_move.board[mv.from.as_index()] = None;
+            game_after_move.board[mv.to.as_index()] = Some(mv.piece);
             if mv.move_type == MoveType::Enpassant {
                 let direction = if mv.piece.color == Color::White {
                     1
                 } else {
                     -1
                 };
-                game_after_move
-                    .board
-                    .insert(mv.to.add((0, -direction)), None);
+                game_after_move.board[mv.to.add((0, -direction)).as_index()] = None;
             }
             game_after_move.protected_squares = game_after_move.get_all_protected_squares(false);
             game_after_move.pieces_attacking_king = game_after_move.pieces_attacking_king(false);
-            game_after_move.pieces_attacking_king[&mv.piece.color].is_empty()
+            game_after_move.pieces_attacking_king[mv.piece.color as usize].is_empty()
         }
     }
 
     fn get_move_if_valid(&self, from: Position, to: Position) -> Option<Move> {
-        match self.board.get(&from) {
-            Some(Some(piece)) => {
-                if self.turn == piece.color {
+        match self.obstacles_in_one_move(from) {
+            Some(Obstacle::Piece(piece_color)) => {
+                if self.turn == piece_color {
                     let matching_moves: Vec<Move> = self
                         .possible_moves(from, false, true)
                         .drain(..)
@@ -1112,7 +1109,7 @@ impl Game {
         let mut all_possible_moves: Vec<Move> = Vec::new();
         for x in 'a'..='h' {
             for y in '1'..='8' {
-                if self.board[&Position(x, y)].is_some() {
+                if self.board[Position(x, y).as_index()].is_some() {
                     all_possible_moves
                         .append(self.possible_moves(Position(x, y), true, true).as_mut());
                 }
