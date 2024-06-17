@@ -10,5 +10,5 @@ license-file.workspace = true
 exclude.workspace = true
 
 [dependencies]
-rayon = "1.10"
+rayon = {workspace = true}
 

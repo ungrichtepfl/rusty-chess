@@ -10,3 +10,6 @@ repository = "https://github.com/ungrichtepfl/rusty-chess"
 readme = "README.md"
 license-file = "LICENSE"
 exclude = [".gitignore"]
+
+[workspace.dependencies]
+rayon = "1.10"

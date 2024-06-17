@@ -9,7 +9,7 @@ pub enum Color {
     White,
     Black,
 }
-const COLOR_COUNT: usize = 2;
+pub const COLOR_COUNT: usize = 2;
 
 impl Color {
     #[must_use]
@@ -33,7 +33,7 @@ pub enum PieceType {
 }
 
 impl PieceType {
-    fn value(&self) -> u8 {
+    pub fn value(&self) -> u8 {
         match self {
             PieceType::Pawn => 1,
             PieceType::Knight | PieceType::Bishop => 3,
@@ -92,8 +92,8 @@ impl From<(&char, &char)> for Position {
         Position(*val.0, *val.1)
     }
 }
-const BOARD_SIZE: usize = 8;
-const TOTAL_SQUARES: usize = BOARD_SIZE * BOARD_SIZE;
+pub const BOARD_SIZE: usize = 8;
+pub const TOTAL_SQUARES: usize = BOARD_SIZE * BOARD_SIZE;
 type Board = [Option<Piece>; TOTAL_SQUARES];
 
 const fn all_possibles_sqares() -> [(char, char); TOTAL_SQUARES] {
@@ -284,7 +284,7 @@ pub enum UserOutput {
 pub struct Game {
     pub turn: Color,
     pub board: Board,
-    captured: [Vec<Piece>; COLOR_COUNT],
+    pub captured: [Vec<Piece>; COLOR_COUNT],
     history: Vec<Move>,
     number_of_repeated_board_states: HashMap<(Color, Board, Vec<Move>), u8>,
     number_of_moves_without_captures_or_pawn_moves: u8,
