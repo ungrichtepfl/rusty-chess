@@ -1,5 +1,5 @@
-import { ChessGame, Piece } from "rusty-chess-wasm";
-import { memory } from "rusty-chess-wasm/rusty_chess_wasm_bg.wasm";
+import { ChessGame, Piece } from "./pkg/rusty_chess_wasm.js";
+import { memory } from "./pkg/rusty_chess_wasm_bg.wasm";
 
 // Interactive cube:
 // http://www.webglacademy.com/courses.php?courses=0_1_20_2_3_4_23_5_6_7_10#4
@@ -199,7 +199,7 @@ function drawBoard() {
           col * CELL_SIZE,
           row * CELL_SIZE,
           CELL_SIZE,
-          CELL_SIZE
+          CELL_SIZE,
         );
     }
   }

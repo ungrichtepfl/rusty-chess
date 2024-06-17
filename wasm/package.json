@@ -1,24 +1,19 @@
 {
-  "main": "index.js",
-  "bin": {
-    "rusty-chess-wasm": ".bin/rusty-chess-wasm.js"
-  },
+  "private": true,
   "scripts": {
-    "build": "webpack",
-    "serve": "webpack serve",
-    "serve-dev": "webpack-dev-server"
+    "clean": "shx rm -rf pkg",
+    "build:wasm": "pnpm clean && wasm-pack build --out-dir pkg",
+    "serve": "pnpm build:wasm && webpack-dev-server",
+    "build": "pnpm build:wasm && webpack"
   },
   "dependencies": {
-    "canvg": "^4.0.1",
-    "rusty-chess-wasm": "file:./pkg"
+    "canvg": "^4.0.1"
   },
   "devDependencies": {
-    "@wasm-tool/wasm-pack-plugin": "^1.7.0",
+    "shx": "^0.3.4",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4",
     "copy-webpack-plugin": "^5.0.0",
-    "toml": "^3.0.0",
-    "toml-require": "^1.2.0",
-    "webpack": "^5.49.0",
-    "webpack-cli": "^4.7.2",
     "webpack-dev-server": "^4.15.1"
   }
 }
