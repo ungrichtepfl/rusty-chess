@@ -1,9 +1,13 @@
 [package]
 name = "rusty-chess-wasm"
 version = "0.1.0"
-edition = "2018"
-rust-version = "1.57"
+edition = "2021"
 description = "A chess engine written in Rust, compiled to WebAssembly."
+authors.workspace = true
+repository.workspace = true
+readme.workspace = true
+license-file.workspace = true
+exclude.workspace = true
 
 [lib]
 # rlib needed to run "normal" rust tests too

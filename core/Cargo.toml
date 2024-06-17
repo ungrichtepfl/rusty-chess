@@ -3,6 +3,11 @@ name = "rusty-chess-core"
 version = "0.1.0"
 edition = "2021"
 description = "Core functionalities of the chess engine."
+authors.workspace = true
+repository.workspace = true
+readme.workspace = true
+license-file.workspace = true
+exclude.workspace = true
 
 [dependencies]
 rayon = "1.10"

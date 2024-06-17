@@ -3,6 +3,11 @@ name = "rusty-chess-cli"
 version = "0.1.0"
 edition = "2021"
 description = "Simple command line chess game written in Rust"
+authors.workspace = true
+repository.workspace = true
+readme.workspace = true
+license-file.workspace = true
+exclude.workspace = true
 
 [dependencies]
 rusty-chess-core = { path = "../core" }
