@@ -1,5 +1,6 @@
 [workspace]
-members = ["core", "cli", "wasm"]
+members = ["core", "cli", "wasm", "gui"]
+default-members = ["gui"]
 resolver = "2"
 
 [workspace.package]

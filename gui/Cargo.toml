@@ -1,0 +1,14 @@
+[package]
+name = "rusty-chess-gui"
+version = "0.1.0"
+edition = "2021"
+description = "A gui for the chess engine"
+authors.workspace = true
+repository.workspace = true
+readme.workspace = true
+license-file.workspace = true
+exclude.workspace = true
+
+[dependencies]
+rusty-chess-core = { path = "../core" }
+raylib = "5.0.1"
