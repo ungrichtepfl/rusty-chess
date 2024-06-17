@@ -4,3 +4,6 @@ version = "0.1.0"
 edition = "2021"
 description = "Core functionalities of the chess engine."
 
+[dependencies]
+rayon = "1.10"
+

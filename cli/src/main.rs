@@ -1,6 +1,6 @@
-use rusty_chess_core::game::{Game, Piece, PieceType, Position, UserInput, UserOutput};
 use lazy_static::lazy_static;
 use regex::Regex;
+use rusty_chess_core::game::{Game, Piece, PieceType, Position, UserInput, UserOutput};
 use std::io;
 use std::io::BufRead;
 use std::process::exit;

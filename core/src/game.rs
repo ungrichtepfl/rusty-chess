@@ -1,5 +1,7 @@
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fmt::{self, Formatter};
+use std::sync::Mutex;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -93,6 +95,74 @@ impl From<(&char, &char)> for Position {
 const BOARD_SIZE: usize = 8;
 const TOTAL_SQUARES: usize = BOARD_SIZE * BOARD_SIZE;
 type Board = [Option<Piece>; TOTAL_SQUARES];
+
+const fn all_possibles_sqares() -> [(char, char); TOTAL_SQUARES] {
+    let mut squares = [('a', 'a'); 64];
+    let mut i: usize = 0;
+    while i < BOARD_SIZE {
+        let mut j: usize = 0;
+        while j < BOARD_SIZE {
+            squares[i * BOARD_SIZE + j] =
+                (('a' as u8 + i as u8) as char, ('1' as u8 + j as u8) as char);
+            j += 1;
+        }
+        i += 1;
+    }
+    squares
+}
+const ALL_POSSIBLE_SQUARES: [(char, char); TOTAL_SQUARES] = all_possibles_sqares();
+
+const fn horizontal_directions() -> [([i8; BOARD_SIZE], [i8; BOARD_SIZE]); 4] {
+    let mut forward = [0; BOARD_SIZE];
+    let mut backward = [0; BOARD_SIZE];
+    let mut i = 0;
+    while i < BOARD_SIZE {
+        forward[i] = i as i8 + 1;
+        backward[i] = -(i as i8 + 1);
+        i += 1;
+    }
+    [
+        (forward, [0i8; BOARD_SIZE]),  // horizontal right
+        (backward, [0i8; BOARD_SIZE]), // horizontal left
+        ([0i8; BOARD_SIZE], forward),  // vertical up
+        ([0i8; BOARD_SIZE], backward), // vertical down
+    ]
+}
+const HORIZONTAL_DIRECTIONS: [([i8; BOARD_SIZE], [i8; BOARD_SIZE]); 4] = horizontal_directions();
+const fn diagonal_directions() -> [([i8; BOARD_SIZE], [i8; BOARD_SIZE]); 4] {
+    let mut forward = [0; BOARD_SIZE];
+    let mut backward = [0; BOARD_SIZE];
+    let mut i = 0;
+    while i < BOARD_SIZE {
+        forward[i] = i as i8 + 1;
+        backward[i] = -(i as i8 + 1);
+        i += 1;
+    }
+    [
+        (forward, forward),   // right diagonal up
+        (forward, backward),  // right diagonal down
+        (backward, forward),  // left diagonal up
+        (backward, backward), // left diagonal down
+    ]
+}
+const DIAGONAL_DIRECTIONS: [([i8; BOARD_SIZE], [i8; BOARD_SIZE]); 4] = diagonal_directions();
+
+const fn queen_directions() -> [([i8; BOARD_SIZE], [i8; BOARD_SIZE]); 8] {
+    let mut directions = [([0i8; BOARD_SIZE], [0i8; BOARD_SIZE]);
+        HORIZONTAL_DIRECTIONS.len() + DIAGONAL_DIRECTIONS.len()];
+    let mut i = 0;
+    while i < HORIZONTAL_DIRECTIONS.len() {
+        directions[i] = HORIZONTAL_DIRECTIONS[i];
+        i += 1;
+    }
+    while i < directions.len() {
+        directions[i] = DIAGONAL_DIRECTIONS[i - HORIZONTAL_DIRECTIONS.len()];
+        i += 1;
+    }
+    directions
+}
+pub const QUEEN_DIRECTIONS: [([i8; BOARD_SIZE], [i8; BOARD_SIZE]);
+    HORIZONTAL_DIRECTIONS.len() + DIAGONAL_DIRECTIONS.len()] = queen_directions();
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Obstacle {
@@ -480,18 +550,16 @@ impl Game {
 
     #[must_use]
     pub fn get_all_currently_valid_moves(&self) -> Vec<Move> {
-        let mut all_possible_moves: Vec<Move> = Vec::new();
-        for x in 'a'..='h' {
-            for y in '1'..='8' {
-                if let Some(piece) = &self.board[Position(x, y).as_index()] {
-                    if piece.color == self.turn {
-                        all_possible_moves
-                            .append(self.possible_moves(Position(x, y), false, true).as_mut());
-                    }
+        let all_possible_moves = ALL_POSSIBLE_SQUARES.par_iter().flat_map(|(x, y)| {
+            let mut all_possible_moves = Vec::new();
+            if let Some(piece) = &self.board[Position(*x, *y).as_index()] {
+                if piece.color == self.turn {
+                    all_possible_moves = self.possible_moves(Position(*x, *y), false, true)
                 }
             }
-        }
-        all_possible_moves
+            all_possible_moves
+        });
+        all_possible_moves.collect()
     }
 
     #[inline]
@@ -559,24 +627,27 @@ impl Game {
     }
 
     fn get_all_protected_squares(&self, filter_pinned: bool) -> [Vec<Position>; COLOR_COUNT] {
-        let mut protected_squares_white: Vec<Position> = Vec::new();
-        let mut protected_squares_black: Vec<Position> = Vec::new();
-        for x in 'a'..='h' {
-            for y in '1'..='8' {
-                if let Some(piece) = &self.board[Position(x, y).as_index()] {
-                    let possible_moves = self.possible_moves(Position(x, y), true, filter_pinned);
-                    for m in possible_moves {
-                        if piece.color == Color::White {
-                            protected_squares_white.push(m.to);
-                        } else {
-                            protected_squares_black.push(m.to);
-                        }
+        let protected_squares_white = Mutex::new(Vec::new());
+        let protected_squares_black = Mutex::new(Vec::new());
+        protected_squares_white.lock().unwrap().reserve(64);
+        protected_squares_black.lock().unwrap().reserve(64);
+        ALL_POSSIBLE_SQUARES.par_iter().for_each(|(x, y)| {
+            if let Some(piece) = &self.board[Position(*x, *y).as_index()] {
+                let possible_moves = self.possible_moves(Position(*x, *y), true, filter_pinned);
+                for m in possible_moves {
+                    if piece.color == Color::White {
+                        protected_squares_white.lock().unwrap().push(m.to);
+                    } else {
+                        protected_squares_black.lock().unwrap().push(m.to);
                     }
                 }
             }
-        }
+        });
 
-        [protected_squares_white, protected_squares_black]
+        [
+            protected_squares_white.into_inner().unwrap(),
+            protected_squares_black.into_inner().unwrap(),
+        ]
     }
 
     fn pos_protected(&self, pos: Position, color: Color) -> bool {
@@ -593,23 +664,19 @@ impl Game {
         false
     }
 
-    fn get_moves_in_one_direction<I1, I2>(
+    fn get_moves_in_one_direction(
         &self,
-        x_path: I1,
-        y_path: I2,
+        x_path: &[i8],
+        y_path: &[i8],
         pos: Position,
         piece: Piece,
         get_protected: bool,
-    ) -> Vec<Move>
-    where
-        I1: Iterator<Item = i8>,
-        I2: Iterator<Item = i8>,
-    {
+    ) -> Vec<Move> {
         let mut moves = Vec::new();
 
         let mut traversed_squares = vec![pos];
-        for (x, y) in x_path.zip(y_path) {
-            let new_pos = pos.add((x, y));
+        for (x, y) in x_path.into_iter().zip(y_path) {
+            let new_pos = pos.add((*x, *y));
             let obstacle = self.obstacles_in_one_move(new_pos);
 
             if let Some(obstacle) = obstacle {
@@ -652,45 +719,12 @@ impl Game {
         piece: Piece,
         get_protected: bool,
     ) -> Vec<Move> {
-        let mut moves = Vec::new();
-
-        // horizontal movement right
-        moves.append(
-            self.get_moves_in_one_direction(1..=8, [0i8; 8].into_iter(), pos, piece, get_protected)
-                .as_mut(),
-        );
-
-        // horizontal movement left
-        moves.append(
-            self.get_moves_in_one_direction(
-                (-8..=-1).rev(),
-                [0i8; 8].into_iter(),
-                pos,
-                piece,
-                get_protected,
-            )
-            .as_mut(),
-        );
-
-        // vertical movement up
-        moves.append(
-            self.get_moves_in_one_direction([0i8; 8].into_iter(), 1..=8, pos, piece, get_protected)
-                .as_mut(),
-        );
-
-        // vertical movement down
-        moves.append(
-            self.get_moves_in_one_direction(
-                [0i8; 8].into_iter(),
-                (-8..=-1).rev(),
-                pos,
-                piece,
-                get_protected,
-            )
-            .as_mut(),
-        );
-
-        moves
+        HORIZONTAL_DIRECTIONS
+            .par_iter() // Convert to a parallel iterator
+            .flat_map(|(x_range, y_range)| {
+                self.get_moves_in_one_direction(x_range, y_range, pos, piece, get_protected)
+            })
+            .collect()
     }
 
     fn possible_diagonal_moves(
@@ -699,65 +733,47 @@ impl Game {
         piece: Piece,
         get_protected: bool,
     ) -> Vec<Move> {
-        let mut moves = Vec::new();
-
-        // right diagonal up
-        moves.append(
-            self.get_moves_in_one_direction(1..=8, 1..=8, pos, piece, get_protected)
-                .as_mut(),
-        );
-
-        // right diagonal down
-        moves.append(
-            self.get_moves_in_one_direction(1..=8, (-8..=-1).rev(), pos, piece, get_protected)
-                .as_mut(),
-        );
-
-        // left diagonal up
-        moves.append(
-            self.get_moves_in_one_direction((-8..=-1).rev(), 1..=8, pos, piece, get_protected)
-                .as_mut(),
-        );
-
-        // left diagonal down
-        moves.append(
-            self.get_moves_in_one_direction(
-                (-8..=-1).rev(),
-                (-8..=-1).rev(),
-                pos,
-                piece,
-                get_protected,
-            )
-            .as_mut(),
-        );
-
-        moves
+        DIAGONAL_DIRECTIONS
+            .par_iter() // Convert to a parallel iterator
+            .flat_map(|(x_range, y_range)| {
+                self.get_moves_in_one_direction(x_range, y_range, pos, piece, get_protected)
+            })
+            .collect()
     }
 
     fn pieces_attacking_king(
         &self,
         filter_pinned: bool,
     ) -> [Vec<(Piece, Vec<Position>)>; COLOR_COUNT] {
-        let mut pieces_attacking_white: Vec<(Piece, Vec<Position>)> = Vec::new();
-        let mut pieces_attacking_black: Vec<(Piece, Vec<Position>)> = Vec::new();
-        for x in 'a'..='h' {
-            for y in '1'..='8' {
-                let moves = self.possible_moves(Position(x, y), false, filter_pinned);
-                for mv in moves {
-                    if let Some(piece) = mv.captured_piece {
-                        if piece.piece_type == PieceType::King {
-                            if mv.piece.color == Color::White {
-                                pieces_attacking_black.push((mv.piece, mv.traversed_squares));
-                            } else {
-                                pieces_attacking_white.push((mv.piece, mv.traversed_squares));
-                            }
+        let pieces_attacking_white = Mutex::new(Vec::new());
+        let pieces_attacking_black = Mutex::new(Vec::new());
+        pieces_attacking_white.lock().unwrap().reserve(16);
+        pieces_attacking_black.lock().unwrap().reserve(16);
+        ALL_POSSIBLE_SQUARES.par_iter().for_each(|(x, y)| {
+            let moves = self.possible_moves(Position(*x, *y), false, filter_pinned);
+            for mv in moves {
+                if let Some(piece) = mv.captured_piece {
+                    if piece.piece_type == PieceType::King {
+                        if mv.piece.color == Color::White {
+                            pieces_attacking_black
+                                .lock()
+                                .unwrap()
+                                .push((mv.piece, mv.traversed_squares));
+                        } else {
+                            pieces_attacking_white
+                                .lock()
+                                .unwrap()
+                                .push((mv.piece, mv.traversed_squares));
                         }
                     }
                 }
             }
-        }
+        });
 
-        [pieces_attacking_white, pieces_attacking_black]
+        [
+            pieces_attacking_white.into_inner().unwrap(),
+            pieces_attacking_black.into_inner().unwrap(),
+        ]
     }
 
     fn no_possible_moves(&self, color: Color) -> bool {
@@ -911,18 +927,12 @@ impl Game {
     }
 
     fn possible_queen_moves(&self, pos: Position, piece: Piece, get_protected: bool) -> Vec<Move> {
-        let mut moves = Vec::new();
-        moves.append(
-            self.possible_horizontal_vertical_moves(pos, piece, get_protected)
-                .as_mut(),
-        );
-
-        moves.append(
-            self.possible_diagonal_moves(pos, piece, get_protected)
-                .as_mut(),
-        );
-
-        moves
+        QUEEN_DIRECTIONS
+            .par_iter() // Convert to a parallel iterator
+            .flat_map(|(x_range, y_range)| {
+                self.get_moves_in_one_direction(x_range, y_range, pos, piece, get_protected)
+            })
+            .collect()
     }
 
     fn possible_king_moves(&self, pos: Position, piece: Piece, get_protected: bool) -> Vec<Move> {
@@ -1032,12 +1042,15 @@ impl Game {
                 "More than one piece attacking the king"
             );
             let (_, pos) = self.pieces_attacking_king[piece.color as usize][0].clone();
-            moves = moves.drain(..).filter(|x| pos.contains(&x.to)).collect();
+            moves = moves
+                .into_par_iter()
+                .filter(|x| pos.contains(&x.to))
+                .collect();
         }
 
         if filter_pinned {
             moves = moves
-                .drain(..)
+                .into_par_iter()
                 .filter(|x| self.piece_is_not_pinned(x))
                 .collect();
         }
@@ -1074,7 +1087,7 @@ impl Game {
                 if self.turn == piece_color {
                     let matching_moves: Vec<Move> = self
                         .possible_moves(from, false, true)
-                        .drain(..)
+                        .into_par_iter()
                         .filter(|x| x.to == to)
                         .collect();
                     if matching_moves.is_empty() {
@@ -1092,16 +1105,14 @@ impl Game {
     }
 
     fn get_all_possible_moves(&self) -> Vec<Move> {
-        let mut all_possible_moves: Vec<Move> = Vec::new();
-        for x in 'a'..='h' {
-            for y in '1'..='8' {
-                if self.board[Position(x, y).as_index()].is_some() {
-                    all_possible_moves
-                        .append(self.possible_moves(Position(x, y), true, true).as_mut());
-                }
+        let all_possible_moves = ALL_POSSIBLE_SQUARES.par_iter().flat_map(|(x, y)| {
+            let mut all_possible_moves = Vec::new();
+            if self.board[Position(*x, *y).as_index()].is_some() {
+                all_possible_moves = self.possible_moves(Position(*x, *y), true, true)
             }
-        }
-        all_possible_moves
+            all_possible_moves
+        });
+        all_possible_moves.collect()
     }
 
     fn is_a_draw(&self) -> bool {
