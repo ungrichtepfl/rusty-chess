@@ -145,6 +145,7 @@ fn draw_board(d: &mut RaylibDrawHandle) {
     }
 }
 
+#[allow(dead_code)]
 fn play_attacking_king(game: &mut Game) -> Option<UserOutput> {
     let possible_moves = game.get_all_currently_valid_moves();
     if possible_moves.is_empty() {
@@ -176,6 +177,7 @@ fn play_attacking_king(game: &mut Game) -> Option<UserOutput> {
     game.process_input(&UserInput::Move(move_to_play.from, move_to_play.to))
 }
 
+#[allow(dead_code)]
 fn play_randomly_aggressive(game: &mut Game) -> Option<UserOutput> {
     let possible_moves = game.get_all_currently_valid_moves();
     if possible_moves.is_empty() {
@@ -206,6 +208,7 @@ const fn coord_to_game_index(x: i32, y: i32) -> usize {
     let j = y / RECT_SIZE;
     to_game_index(i as usize, j as usize)
 }
+
 const fn game_index_to_coord(index: usize) -> (i32, i32) {
     let index = TOTAL_SQUARES - 1 - index;
     let i = index % BOARD_SIZE;
@@ -309,19 +312,25 @@ fn draw(
     }
 }
 
-fn update_game(game: &mut Game) -> Option<UserOutput> {
+fn update_game(
+    game: &mut Game,
+    selected_piece: &mut Option<SelectedPiece>,
+    rl: &mut RaylibHandle,
+) -> Option<UserOutput> {
     let user_output = if game.turn == ChessColor::White {
-        play_randomly_aggressive(game)
+        update_selected_piece(game, selected_piece, rl)
     } else {
         play_attacking_king(game)
     };
     user_output
 }
+
 fn update_selected_piece(
+    game: &mut Game,
     selected_piece: &mut Option<SelectedPiece>,
-    game: &Game,
     rl: &mut RaylibHandle,
-) {
+) -> Option<UserOutput> {
+    let mut user_output = None;
     if rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT) {
         let mouse_pos = rl.get_mouse_position();
         let x = mouse_pos.x as i32;
@@ -344,9 +353,30 @@ fn update_selected_piece(
                 });
             }
         }
+    } else if rl.is_mouse_button_released(MouseButton::MOUSE_BUTTON_LEFT)
+        && selected_piece.is_some()
+    {
+        let mouse_pos = rl.get_mouse_position();
+        let x = mouse_pos.x as i32;
+        let y = mouse_pos.y as i32;
+        if let Ok(to) = coord_to_game_index(x, y).try_into() {
+            let game_index = selected_piece.as_ref().unwrap().game_index;
+            let from = game_index.try_into().expect("Invalid game index");
+            let user_input = UserInput::Move(from, to);
+            match game.process_input(&user_input) {
+                Some(UserOutput::InvalidMove) => {
+                    println!("Invalid move");
+                }
+                o => {
+                    user_output = o;
+                }
+            }
+        }
+        *selected_piece = None;
     } else {
         *selected_piece = None;
     }
+    user_output
 }
 
 fn main() {
@@ -373,14 +403,13 @@ fn main() {
     let mut user_output = None;
     let mut selected_piece = None;
     while !rl.window_should_close() {
-        update_selected_piece(&mut selected_piece, &game, &mut rl);
         if rl.is_key_pressed(KeyboardKey::KEY_R) {
             game = Game::new();
             finished = false;
             user_output = None;
         }
         if !finished {
-            // user_output = update_game(&mut game);
+            user_output = update_game(&mut game, &mut selected_piece, &mut rl);
             if user_output.is_some() {
                 finished = true;
             }
