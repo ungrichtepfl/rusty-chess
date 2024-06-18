@@ -206,6 +206,12 @@ const fn coord_to_game_index(x: i32, y: i32) -> usize {
     let j = y / RECT_SIZE;
     to_game_index(i as usize, j as usize)
 }
+const fn game_index_to_coord(index: usize) -> (i32, i32) {
+    let index = TOTAL_SQUARES - 1 - index;
+    let i = index % BOARD_SIZE;
+    let j = index / BOARD_SIZE;
+    (i as i32 * RECT_SIZE, j as i32 * RECT_SIZE)
+}
 
 fn draw_pieces(
     game: &Game,
@@ -213,6 +219,23 @@ fn draw_pieces(
     selected_piece: Option<&SelectedPiece>,
     d: &mut RaylibDrawHandle,
 ) {
+    if let Some(selected_piece) = selected_piece {
+        let pos = selected_piece
+            .game_index
+            .try_into()
+            .expect("Invalid game index");
+        let possible_moves = game.get_valid_moves(pos);
+        for mv in possible_moves {
+            let (x, y) = game_index_to_coord(mv.to.as_index());
+            let color = if mv.captured_piece.is_some() {
+                Color::from_hex("FF0000").unwrap()
+            } else {
+                Color::from_hex("00FF00").unwrap()
+            };
+            d.draw_rectangle(x, y, RECT_SIZE, RECT_SIZE, color.alpha(0.25));
+        }
+    }
+
     for i in 0..BOARD_SIZE {
         for j in 0..BOARD_SIZE {
             let game_index = to_game_index(i, j);

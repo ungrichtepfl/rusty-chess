@@ -67,7 +67,7 @@ impl Position {
     }
 
     #[inline]
-    fn as_index(self: Position) -> usize {
+    pub fn as_index(self: Position) -> usize {
         let x = self.0 as u8 - b'a';
         let y = self.1 as u8 - b'1';
         (y as usize) * BOARD_SIZE + (x as usize)
@@ -92,6 +92,19 @@ impl From<(&char, &char)> for Position {
         Position(*val.0, *val.1)
     }
 }
+impl TryFrom<usize> for Position {
+    type Error = ();
+
+    fn try_from(val: usize) -> Result<Self, Self::Error> {
+        if val >= TOTAL_SQUARES {
+            return Err(());
+        }
+        let x = (val % BOARD_SIZE) as u8 + b'a';
+        let y = (val / BOARD_SIZE) as u8 + b'1';
+        Ok(Position(x as char, y as char))
+    }
+}
+
 pub const BOARD_SIZE: usize = 8;
 pub const TOTAL_SQUARES: usize = BOARD_SIZE * BOARD_SIZE;
 type Board = [Option<Piece>; TOTAL_SQUARES];
@@ -554,12 +567,17 @@ impl Game {
             let mut all_possible_moves = Vec::new();
             if let Some(piece) = &self.board[Position(*x, *y).as_index()] {
                 if piece.color == self.turn {
-                    all_possible_moves = self.possible_moves(Position(*x, *y), false, true)
+                    all_possible_moves = self.get_valid_moves(Position(*x, *y));
                 }
             }
             all_possible_moves
         });
         all_possible_moves.collect()
+    }
+
+    #[must_use]
+    pub fn get_valid_moves(&self, pos: Position) -> Vec<Move> {
+        self.possible_moves(pos, false, true)
     }
 
     #[inline]
