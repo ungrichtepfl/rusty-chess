@@ -1,6 +1,6 @@
 [package]
 name = "rusty-chess-gui"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "A gui for the chess engine"
 readme = "README.md"

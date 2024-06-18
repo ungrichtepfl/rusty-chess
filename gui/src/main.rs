@@ -7,7 +7,6 @@ use rusty_chess_core::game::PieceType;
 use rusty_chess_core::game::UserInput;
 use rusty_chess_core::game::UserOutput;
 use rusty_chess_core::game::BOARD_SIZE;
-use rusty_chess_core::game::TOTAL_SQUARES;
 use std::path::Path;
 use std::thread::available_parallelism;
 
