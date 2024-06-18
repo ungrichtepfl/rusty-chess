@@ -3,9 +3,9 @@ name = "rusty-chess-wasm"
 version = "0.1.0"
 edition = "2021"
 description = "A chess engine written in Rust, compiled to WebAssembly."
+readme = "README.md"
 authors.workspace = true
 repository.workspace = true
-readme.workspace = true
 license-file.workspace = true
 exclude.workspace = true
 
