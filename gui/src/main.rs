@@ -132,7 +132,7 @@ struct SelectedPiece {
 
 fn draw_board(d: &mut RaylibDrawHandle) {
     let black_color = Color::from_hex("999999").unwrap();
-    let mut white = false;
+    let mut white = true;
     for i in 0..BOARD_SIZE as i32 {
         for j in 0..BOARD_SIZE as i32 {
             let x = i * RECT_SIZE;
@@ -199,7 +199,7 @@ fn play_randomly_aggressive(game: &mut Game) -> Option<UserOutput> {
 
 #[inline]
 const fn to_game_index(i: usize, j: usize) -> usize {
-    TOTAL_SQUARES - 1 - i - j * BOARD_SIZE
+    (BOARD_SIZE - 1 - j) * BOARD_SIZE + i
 }
 
 #[inline]
@@ -210,9 +210,8 @@ const fn coord_to_game_index(x: i32, y: i32) -> usize {
 }
 
 const fn game_index_to_coord(index: usize) -> (i32, i32) {
-    let index = TOTAL_SQUARES - 1 - index;
     let i = index % BOARD_SIZE;
-    let j = index / BOARD_SIZE;
+    let j = BOARD_SIZE - 1 - index / BOARD_SIZE;
     (i as i32 * RECT_SIZE, j as i32 * RECT_SIZE)
 }
 
