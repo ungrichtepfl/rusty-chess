@@ -3,7 +3,7 @@ name = "rusty-chess-gui"
 version = "0.1.0"
 edition = "2021"
 description = "A gui for the chess engine"
-include = ["assets/**/*"]
+# include = ["src/", "assets/**/*"]
 authors.workspace = true
 repository.workspace = true
 readme.workspace = true
@@ -11,7 +11,8 @@ license-file.workspace = true
 exclude.workspace = true
 
 [dependencies]
-rusty-chess-core = { path = "../core" }
+rusty-chess-core = { path = "../core", version = "0.1.1" }
 rand = "0.8.5"
 rayon = { workspace = true }
 raylib = "5.0.1"
+
