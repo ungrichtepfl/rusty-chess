@@ -2,6 +2,7 @@ use rand::Rng;
 use raylib::prelude::*;
 use rusty_chess_core::game::Color as ChessColor;
 use rusty_chess_core::game::Game;
+use rusty_chess_core::game::Piece;
 use rusty_chess_core::game::PieceType;
 use rusty_chess_core::game::UserInput;
 use rusty_chess_core::game::UserOutput;
@@ -119,6 +120,16 @@ impl Assets {
         }
     }
 }
+
+struct SelectedPiece {
+    piece: Piece,
+    game_index: usize,
+    square_x: i32,
+    square_y: i32,
+    x: i32,
+    y: i32,
+}
+
 fn draw_board(d: &mut RaylibDrawHandle) {
     let black_color = Color::from_hex("999999").unwrap();
     let mut white = false;
@@ -184,10 +195,28 @@ fn play_randomly_aggressive(game: &mut Game) -> Option<UserOutput> {
     game.process_input(&UserInput::Move(move_to_play.from, move_to_play.to))
 }
 
-fn draw_pieces(game: &Game, assets: &Assets, d: &mut RaylibDrawHandle) {
+#[inline]
+const fn to_game_index(i: usize, j: usize) -> usize {
+    TOTAL_SQUARES - 1 - i - j * BOARD_SIZE
+}
+
+#[inline]
+const fn coord_to_game_index(x: i32, y: i32) -> usize {
+    let i = x / RECT_SIZE;
+    let j = y / RECT_SIZE;
+    to_game_index(i as usize, j as usize)
+}
+
+fn draw_pieces(
+    game: &Game,
+    assets: &Assets,
+    selected_piece: Option<&SelectedPiece>,
+    d: &mut RaylibDrawHandle,
+) {
     for i in 0..BOARD_SIZE {
         for j in 0..BOARD_SIZE {
-            let piece = game.board[TOTAL_SQUARES - 1 - i - j * BOARD_SIZE];
+            let game_index = to_game_index(i, j);
+            let piece = game.board[game_index];
             if let Some(piece) = piece {
                 let texture = match piece.color {
                     ChessColor::White => match piece.piece_type {
@@ -207,17 +236,25 @@ fn draw_pieces(game: &Game, assets: &Assets, d: &mut RaylibDrawHandle) {
                         PieceType::King => &assets.king_b,
                     },
                 };
-                let x = i as i32 * RECT_SIZE + RECT_SIZE / 2 - texture.width / 2;
-                let y = j as i32 * RECT_SIZE + RECT_SIZE / 2 - texture.height / 2;
+                let mut x = i as i32 * RECT_SIZE + RECT_SIZE / 2 - texture.width / 2;
+                let mut y = j as i32 * RECT_SIZE + RECT_SIZE / 2 - texture.height / 2;
+                if let Some(selected_piece) = selected_piece {
+                    if selected_piece.piece == piece && selected_piece.game_index == game_index {
+                        x = selected_piece.x - selected_piece.square_x;
+                        y = selected_piece.y - selected_piece.square_y;
+                    }
+                }
                 d.draw_texture(texture, x, y, Color::WHITE);
             }
         }
     }
 }
+
 fn draw(
     game: &Game,
     assets: &Assets,
     user_output: Option<&UserOutput>,
+    selected_piece: Option<&SelectedPiece>,
     rl: &mut RaylibHandle,
     thread: &RaylibThread,
 ) {
@@ -238,15 +275,17 @@ fn draw(
     let text2_x = WINDOW_SIZE / 2 - rl.measure_text(text2, font_size) / 2;
     let text2_y = WINDOW_SIZE / 2 + font_size - font_size / 2;
 
+    /* ******* BEGIN DRAWING ******* */
     let mut d = rl.begin_drawing(&thread);
     d.clear_background(Color::WHITE);
     draw_board(&mut d);
-    draw_pieces(game, assets, &mut d);
+    draw_pieces(game, assets, selected_piece, &mut d);
     if !text.is_empty() {
         d.draw_text(text, text_x, text_y, font_size, Color::RED);
         d.draw_text(text2, text2_x, text2_y, font_size, Color::RED);
     }
 }
+
 fn update_game(game: &mut Game) -> Option<UserOutput> {
     let user_output = if game.turn == ChessColor::White {
         play_randomly_aggressive(game)
@@ -254,6 +293,37 @@ fn update_game(game: &mut Game) -> Option<UserOutput> {
         play_attacking_king(game)
     };
     user_output
+}
+fn update_selected_piece(
+    selected_piece: &mut Option<SelectedPiece>,
+    game: &Game,
+    rl: &mut RaylibHandle,
+) {
+    if rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT) {
+        let mouse_pos = rl.get_mouse_position();
+        let x = mouse_pos.x as i32;
+        let y = mouse_pos.y as i32;
+        if let Some(selected_piece) = selected_piece {
+            selected_piece.x = x;
+            selected_piece.y = y;
+        } else {
+            let game_index = coord_to_game_index(x, y);
+            let square_x = x % RECT_SIZE;
+            let square_y = y % RECT_SIZE;
+            if let Some(piece) = game.board[game_index] {
+                *selected_piece = Some(SelectedPiece {
+                    piece,
+                    game_index,
+                    square_x,
+                    square_y,
+                    x,
+                    y,
+                });
+            }
+        }
+    } else {
+        *selected_piece = None;
+    }
 }
 
 fn main() {
@@ -275,20 +345,30 @@ fn main() {
     let mut game = Game::new();
 
     rl.set_target_fps(60);
+    rl.show_cursor();
     let mut finished = false;
     let mut user_output = None;
+    let mut selected_piece = None;
     while !rl.window_should_close() {
+        update_selected_piece(&mut selected_piece, &game, &mut rl);
         if rl.is_key_pressed(KeyboardKey::KEY_R) {
             game = Game::new();
             finished = false;
             user_output = None;
         }
         if !finished {
-            user_output = update_game(&mut game);
+            // user_output = update_game(&mut game);
             if user_output.is_some() {
                 finished = true;
             }
         }
-        draw(&game, &assets, user_output.as_ref(), &mut rl, &thread);
+        draw(
+            &game,
+            &assets,
+            user_output.as_ref(),
+            selected_piece.as_ref(),
+            &mut rl,
+            &thread,
+        );
     }
 }

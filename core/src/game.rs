@@ -13,7 +13,7 @@ pub const COLOR_COUNT: usize = 2;
 
 impl Color {
     #[must_use]
-    pub fn invert(&self) -> Color {
+    pub const fn invert(&self) -> Color {
         match self {
             Color::White => Color::Black,
             Color::Black => Color::White,
@@ -33,7 +33,7 @@ pub enum PieceType {
 }
 
 impl PieceType {
-    pub fn value(&self) -> u8 {
+    pub const fn value(&self) -> u8 {
         match self {
             PieceType::Pawn => 1,
             PieceType::Knight | PieceType::Bishop => 3,
@@ -228,7 +228,7 @@ impl fmt::Display for Piece {
 
 impl Piece {
     #[must_use]
-    pub fn new(piece_type: PieceType, color: Color) -> Piece {
+    pub const fn new(piece_type: PieceType, color: Color) -> Piece {
         Piece { piece_type, color }
     }
 }
