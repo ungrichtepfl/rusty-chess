@@ -521,16 +521,16 @@ impl Game {
                             self.number_of_repeated_board_states.insert(key, 1);
                         }
 
-                        if self.is_a_draw() {
-                            return Some(UserOutput::Draw);
-                        }
-
                         if self.no_possible_moves(self.turn) {
                             return if self.check(self.turn) {
                                 Some(UserOutput::CheckMate)
                             } else {
                                 Some(UserOutput::StaleMate)
                             };
+                        }
+
+                        if self.is_a_draw() {
+                            return Some(UserOutput::Draw);
                         }
 
                         None
@@ -671,12 +671,7 @@ impl Game {
     }
 
     fn pos_protected(&self, pos: Position, color: Color) -> bool {
-        let protected_positions: &Vec<Position> = if color == Color::White {
-            self.protected_squares[Color::White as usize].as_ref()
-        } else {
-            self.protected_squares[Color::Black as usize].as_ref()
-        };
-        for pos_protected in protected_positions {
+        for pos_protected in self.protected_squares[color as usize].iter() {
             if pos == *pos_protected {
                 return true;
             }
@@ -799,7 +794,7 @@ impl Game {
     fn no_possible_moves(&self, color: Color) -> bool {
         for x in 'a'..='h' {
             for y in '1'..='8' {
-                let moves = self.possible_moves(Position(x, y), false, false);
+                let moves = self.possible_moves(Position(x, y), false, true);
                 if !moves.is_empty() && moves[0].piece.color == color {
                     return false;
                 }
@@ -1079,26 +1074,24 @@ impl Game {
     }
 
     fn piece_is_not_pinned(&self, mv: &Move) -> bool {
-        if mv.piece.piece_type == PieceType::King {
-            true
-        } else {
-            let mut game_after_move = self.clone();
-            game_after_move.turn = game_after_move.turn.invert();
-            // update position
-            game_after_move.board[mv.from.as_index()] = None;
-            game_after_move.board[mv.to.as_index()] = Some(mv.piece);
-            if mv.move_type == MoveType::Enpassant {
-                let direction = if mv.piece.color == Color::White {
-                    1
-                } else {
-                    -1
-                };
-                game_after_move.board[mv.to.add((0, -direction)).as_index()] = None;
-            }
-            game_after_move.protected_squares = game_after_move.get_all_protected_squares(false);
-            game_after_move.pieces_attacking_king = game_after_move.pieces_attacking_king(false);
-            game_after_move.pieces_attacking_king[mv.piece.color as usize].is_empty()
+        // NOTE: We also consider the King here such that he does not move into a check
+        // for example when the King moves in the same direction as the line of attack of a Rook
+        let mut game_after_move = self.clone();
+        game_after_move.turn = game_after_move.turn.invert();
+        // update position
+        game_after_move.board[mv.from.as_index()] = None;
+        game_after_move.board[mv.to.as_index()] = Some(mv.piece);
+        if mv.move_type == MoveType::Enpassant {
+            let direction = if mv.piece.color == Color::White {
+                1
+            } else {
+                -1
+            };
+            game_after_move.board[mv.to.add((0, -direction)).as_index()] = None;
         }
+        game_after_move.protected_squares = game_after_move.get_all_protected_squares(false);
+        game_after_move.pieces_attacking_king = game_after_move.pieces_attacking_king(false);
+        game_after_move.pieces_attacking_king[mv.piece.color as usize].is_empty()
     }
 
     fn get_move_if_valid(&self, from: Position, to: Position) -> Option<Move> {
