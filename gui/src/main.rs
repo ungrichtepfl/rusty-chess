@@ -148,9 +148,10 @@ fn draw_board(d: &mut RaylibDrawHandle) {
 fn play_attacking_king(game: &mut Game) -> Option<UserOutput> {
     let possible_moves = game.get_all_currently_valid_moves();
     if possible_moves.is_empty() {
-        panic!(
+        eprintln!(
             "Something went wrong. No possible moves found. Function was probably called after check mate or stale mate."
         );
+        return Some(UserOutput::InvalidMove);
     }
 
     let move_to_play = possible_moves
@@ -300,7 +301,7 @@ fn draw(
     let text2_y = WINDOW_SIZE / 2 + font_size - font_size / 2;
 
     /* ******* BEGIN DRAWING ******* */
-    let mut d = rl.begin_drawing(&thread);
+    let mut d = rl.begin_drawing(thread);
     d.clear_background(Color::WHITE);
     draw_board(&mut d);
     draw_pieces(game, assets, selected_piece, &mut d);
@@ -315,12 +316,11 @@ fn update_game(
     selected_piece: &mut Option<SelectedPiece>,
     rl: &mut RaylibHandle,
 ) -> Option<UserOutput> {
-    let user_output = if game.turn == ChessColor::White {
+    if game.turn == ChessColor::White {
         update_selected_piece(game, selected_piece, rl)
     } else {
         play_attacking_king(game)
-    };
-    user_output
+    }
 }
 
 fn update_selected_piece(

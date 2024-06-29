@@ -116,7 +116,7 @@ const fn all_possibles_sqares() -> [(char, char); TOTAL_SQUARES] {
         let mut j: usize = 0;
         while j < BOARD_SIZE {
             squares[i * BOARD_SIZE + j] =
-                (('a' as u8 + i as u8) as char, ('1' as u8 + j as u8) as char);
+                ((b'a' + i as u8) as char, (b'1' + j as u8) as char);
             j += 1;
         }
         i += 1;
@@ -594,12 +594,7 @@ impl Game {
         let Some(index) = pos.try_as_index() else {
             return Some(Obstacle::OutOfBoundary);
         };
-        match self.board[index] {
-            // no piece there: good
-            None => None,
-            // cannot be same color and if you want to get protected any piece is an obstacle
-            Some(p) => Some(Obstacle::Piece(p.color)),
-        }
+        self.board[index].map(|p| Obstacle::Piece(p.color))
     }
 
     fn can_short_castle(&self, color: Color) -> bool {
@@ -690,7 +685,7 @@ impl Game {
         let mut moves = Vec::new();
 
         let mut traversed_squares = vec![pos];
-        for (x, y) in x_path.into_iter().zip(y_path) {
+        for (x, y) in x_path.iter().zip(y_path) {
             let new_pos = pos.add((*x, *y));
             let obstacle = self.obstacles_in_one_move(new_pos);
 

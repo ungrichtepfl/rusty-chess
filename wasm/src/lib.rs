@@ -158,7 +158,6 @@ impl ChessGame {
         user_output
     }
 
-
     pub fn play_attacking_king(&mut self) -> Option<UserOutputWrapper> {
         let possible_moves = self.game.get_all_currently_valid_moves();
         if possible_moves.is_empty() {
@@ -195,7 +194,6 @@ impl ChessGame {
         user_output
     }
 
-
     pub fn play_randomly_aggressive(&mut self) -> Option<UserOutputWrapper> {
         let possible_moves = self.game.get_all_currently_valid_moves();
         if possible_moves.is_empty() {
@@ -217,7 +215,7 @@ impl ChessGame {
             .process_input(&UserInput::Move(move_to_play.from, move_to_play.to))
             .map(|x| UserOutputWrapper(x));
         self.update_game_board();
-        console_log!("{}",self.game);
+        console_log!("{}", self.game);
         user_output
     }
 
