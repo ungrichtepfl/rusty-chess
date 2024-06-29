@@ -503,6 +503,8 @@ impl Game {
                         if !(mv.captured_piece.is_some() || mv.piece.piece_type == PieceType::Pawn)
                         {
                             self.number_of_moves_without_captures_or_pawn_moves += 1;
+                        } else {
+                            self.number_of_moves_without_captures_or_pawn_moves = 0;
                         }
 
                         self.history.push(mv);
