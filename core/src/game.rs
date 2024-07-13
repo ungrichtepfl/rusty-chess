@@ -33,7 +33,7 @@ pub enum PieceType {
 }
 
 impl PieceType {
-    pub const fn value(&self) -> u8 {
+    #[must_use] pub const fn value(&self) -> u8 {
         match self {
             PieceType::Pawn => 1,
             PieceType::Knight | PieceType::Bishop => 3,
@@ -67,7 +67,7 @@ impl Position {
     }
 
     #[inline]
-    pub fn as_index(self: Position) -> usize {
+    #[must_use] pub fn as_index(self: Position) -> usize {
         let x = self.0 as u8 - b'a';
         let y = self.1 as u8 - b'1';
         (y as usize) * BOARD_SIZE + (x as usize)
@@ -115,8 +115,7 @@ const fn all_possibles_sqares() -> [(char, char); TOTAL_SQUARES] {
     while i < BOARD_SIZE {
         let mut j: usize = 0;
         while j < BOARD_SIZE {
-            squares[i * BOARD_SIZE + j] =
-                ((b'a' + i as u8) as char, (b'1' + j as u8) as char);
+            squares[i * BOARD_SIZE + j] = ((b'a' + i as u8) as char, (b'1' + j as u8) as char);
             j += 1;
         }
         i += 1;
@@ -442,8 +441,7 @@ impl Game {
                                 -1
                             };
                             self.board[mv.to.add((0, -direction)).as_index()] = None;
-                        }
-                        if mv.move_type == MoveType::LongCastle {
+                        } else if mv.move_type == MoveType::LongCastle {
                             if mv.piece.color == Color::White {
                                 self.board[Position('a', '1').as_index()] = None;
                                 self.board[Position('d', '1').as_index()] =
@@ -453,8 +451,7 @@ impl Game {
                                 self.board[Position('d', '8').as_index()] =
                                     Some(Piece::new(PieceType::Rook, Color::Black));
                             }
-                        }
-                        if mv.move_type == MoveType::ShortCastle {
+                        } else if mv.move_type == MoveType::ShortCastle {
                             if mv.piece.color == Color::White {
                                 self.board[Position('h', '1').as_index()] = None;
                                 self.board[Position('f', '1').as_index()] =
@@ -467,8 +464,8 @@ impl Game {
                         }
                         // FIXME: circular relationship in those function. Dirty fix was used by checking bool get_protected when checking if check
                         //  get_all_protected_squares has to be run before pieces_attacking_king right now
-                        self.protected_squares = self.get_all_protected_squares(true);
-                        self.pieces_attacking_king = self.pieces_attacking_king(true);
+                        self.protected_squares = self.get_all_protected_squares(false); // as it does not matter if the piece is protected as the king never can move into check
+                        self.pieces_attacking_king = self.pieces_attacking_king(false); // as it does not matter if the piece is protected as the king never can move into check
 
                         if let Some(captured_piece) = mv.captured_piece {
                             self.captured[mv.piece.color as usize].push(captured_piece);
@@ -583,7 +580,7 @@ impl Game {
     }
 
     #[inline]
-    pub fn check(&self, color: Color) -> bool {
+    #[must_use] pub fn check(&self, color: Color) -> bool {
         !self.pieces_attacking_king[color as usize].is_empty()
     }
 }
@@ -666,7 +663,7 @@ impl Game {
     }
 
     fn pos_protected(&self, pos: Position, color: Color) -> bool {
-        for pos_protected in self.protected_squares[color as usize].iter() {
+        for pos_protected in &self.protected_squares[color as usize] {
             if pos == *pos_protected {
                 return true;
             }
@@ -1061,14 +1058,14 @@ impl Game {
         if filter_pinned {
             moves = moves
                 .into_par_iter()
-                .filter(|x| self.piece_is_not_pinned(x))
+                .filter(|x| self.king_in_check_after_move(x))
                 .collect();
         }
 
         moves
     }
 
-    fn piece_is_not_pinned(&self, mv: &Move) -> bool {
+    fn king_in_check_after_move(&self, mv: &Move) -> bool {
         // NOTE: We also consider the King here such that he does not move into a check
         // for example when the King moves in the same direction as the line of attack of a Rook
         let mut game_after_move = self.clone();
@@ -1083,6 +1080,26 @@ impl Game {
                 -1
             };
             game_after_move.board[mv.to.add((0, -direction)).as_index()] = None;
+        } else if mv.move_type == MoveType::LongCastle {
+            if mv.piece.color == Color::White {
+                game_after_move.board[Position('a', '1').as_index()] = None;
+                game_after_move.board[Position('d', '1').as_index()] =
+                    Some(Piece::new(PieceType::Rook, Color::White));
+            } else {
+                game_after_move.board[Position('a', '8').as_index()] = None;
+                game_after_move.board[Position('d', '8').as_index()] =
+                    Some(Piece::new(PieceType::Rook, Color::Black));
+            }
+        } else if mv.move_type == MoveType::ShortCastle {
+            if mv.piece.color == Color::White {
+                game_after_move.board[Position('h', '1').as_index()] = None;
+                game_after_move.board[Position('f', '1').as_index()] =
+                    Some(Piece::new(PieceType::Rook, Color::White));
+            } else {
+                game_after_move.board[Position('h', '8').as_index()] = None;
+                game_after_move.board[Position('f', '8').as_index()] =
+                    Some(Piece::new(PieceType::Rook, Color::Black));
+            }
         }
         game_after_move.protected_squares = game_after_move.get_all_protected_squares(false);
         game_after_move.pieces_attacking_king = game_after_move.pieces_attacking_king(false);
@@ -1116,7 +1133,7 @@ impl Game {
         let all_possible_moves = ALL_POSSIBLE_SQUARES.par_iter().flat_map(|(x, y)| {
             let mut all_possible_moves = Vec::new();
             if self.board[Position(*x, *y).as_index()].is_some() {
-                all_possible_moves = self.possible_moves(Position(*x, *y), true, true)
+                all_possible_moves = self.possible_moves(Position(*x, *y), true, true);
             }
             all_possible_moves
         });

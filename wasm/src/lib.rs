@@ -1,6 +1,8 @@
 #[macro_use]
 mod utils;
 
+use std::fmt::{self, Display, Formatter};
+
 use utils::set_panic_hook;
 use wasm_bindgen::prelude::*;
 
@@ -49,52 +51,40 @@ pub struct PositionWrapper(pub char, pub char);
 
 #[wasm_bindgen]
 impl UserOutputWrapper {
-    pub fn is_check_mate(&self) -> bool {
-        match self.0 {
-            UserOutput::CheckMate => true,
-            _ => false,
-        }
+    #[must_use] pub fn is_check_mate(&self) -> bool {
+        matches!(self.0, UserOutput::CheckMate)
     }
 
-    pub fn is_stale_mate(&self) -> bool {
-        match self.0 {
-            UserOutput::StaleMate => true,
-            _ => false,
-        }
+    #[must_use] pub fn is_stale_mate(&self) -> bool {
+        matches!(self.0, UserOutput::StaleMate)
     }
-    pub fn is_invalid_move(&self) -> bool {
-        match self.0 {
-            UserOutput::InvalidMove => true,
-            _ => false,
-        }
+    #[must_use] pub fn is_invalid_move(&self) -> bool {
+        matches!(self.0, UserOutput::InvalidMove)
     }
-    pub fn is_promotion(&self) -> bool {
-        match self.0 {
-            UserOutput::Promotion(_) => true,
-            _ => false,
-        }
+    #[must_use] pub fn is_promotion(&self) -> bool {
+        matches!(self.0, UserOutput::Promotion(_))
     }
-    pub fn promotion_pos(&self) -> Option<PositionWrapper> {
+    #[must_use] pub fn promotion_pos(&self) -> Option<PositionWrapper> {
         match self.0 {
             UserOutput::Promotion(pos) => Some(PositionWrapper(pos.0, pos.1)),
             _ => None,
         }
     }
-    pub fn is_draw(&self) -> bool {
-        match self.0 {
-            UserOutput::Draw => true,
-            _ => false,
-        }
+    #[must_use] pub fn is_draw(&self) -> bool {
+        matches!(self.0, UserOutput::Draw)
     }
+}
 
-    pub fn to_string(&self) -> String {
-        match self.0 {
+impl Display for UserOutputWrapper {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        let s = match self.0 {
             UserOutput::CheckMate => "CheckMate".to_string(),
             UserOutput::StaleMate => "StaleMate".to_string(),
             UserOutput::InvalidMove => "InvalidMove".to_string(),
             UserOutput::Promotion(pos) => format!("Promotion ({},{})", pos.0, pos.1),
             UserOutput::Draw => "Draw".to_string(),
-        }
+        };
+        write!(f, "{s}")
     }
 }
 impl ChessGame {
@@ -132,7 +122,7 @@ impl ChessGame {
 
 #[wasm_bindgen]
 impl ChessGame {
-    pub fn new() -> ChessGame {
+    #[must_use] pub fn new() -> ChessGame {
         set_panic_hook();
         let game = Game::new();
         let game_board = [Piece::Empty; 64];
@@ -153,7 +143,7 @@ impl ChessGame {
         let user_output = self
             .game
             .process_input(&UserInput::Move((from1, from2).into(), (to1, to2).into()))
-            .map(|x| UserOutputWrapper(x));
+            .map(UserOutputWrapper);
         self.update_game_board();
         user_output
     }
@@ -188,7 +178,7 @@ impl ChessGame {
         let user_output = self
             .game
             .process_input(&UserInput::Move(move_to_play.from, move_to_play.to))
-            .map(|x| UserOutputWrapper(x));
+            .map(UserOutputWrapper);
         self.update_game_board();
         console_log!("{}", self.game);
         user_output
@@ -213,17 +203,23 @@ impl ChessGame {
         let user_output = self
             .game
             .process_input(&UserInput::Move(move_to_play.from, move_to_play.to))
-            .map(|x| UserOutputWrapper(x));
+            .map(UserOutputWrapper);
         self.update_game_board();
         console_log!("{}", self.game);
         user_output
     }
 
-    pub fn get_game_board(&self) -> *const Piece {
+    #[must_use] pub fn get_game_board(&self) -> *const Piece {
         self.game_board.as_ptr()
     }
 
-    pub fn render(&self) -> String {
+    #[must_use] pub fn render(&self) -> String {
         self.game.to_string()
+    }
+}
+
+impl Default for ChessGame {
+    fn default() -> Self {
+        Self::new()
     }
 }

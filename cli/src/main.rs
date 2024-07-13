@@ -128,9 +128,8 @@ fn headless_chess() {
                 if input_move.contains('y') {
                     println!("It is a draw!");
                     exit(0)
-                } else {
-                    println!("Draw has been refused!");
                 }
+                println!("Draw has been refused!");
             }
             Ok(UserInput::Promotion(_, _)) => {
                 unreachable!("Should not be an output of parsing.")

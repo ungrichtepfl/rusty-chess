@@ -1,9 +1,11 @@
+use rand::seq::SliceRandom;
 use rand::Rng;
 use raylib::prelude::*;
 use rusty_chess_core::game::Color as ChessColor;
 use rusty_chess_core::game::Game;
 use rusty_chess_core::game::Piece;
 use rusty_chess_core::game::PieceType;
+use rusty_chess_core::game::Position;
 use rusty_chess_core::game::UserInput;
 use rusty_chess_core::game::UserOutput;
 use rusty_chess_core::game::BOARD_SIZE;
@@ -48,7 +50,7 @@ struct Assets {
 
 fn get_asset_path(asset: &str) -> String {
     let path = Path::new(CRATE_PATH).join(ASSETS_PATH).join(asset);
-    debug_assert!(path.exists(), "Asset not found: {:?}", path);
+    debug_assert!(path.exists(), "Asset not found: {path:?}");
     path.to_str().unwrap().to_string()
 }
 
@@ -146,7 +148,8 @@ fn draw_board(d: &mut RaylibDrawHandle) {
 
 #[allow(dead_code)]
 fn play_attacking_king(game: &mut Game) -> Option<UserOutput> {
-    let possible_moves = game.get_all_currently_valid_moves();
+    let rng = &mut rand::thread_rng();
+    let mut possible_moves = game.get_all_currently_valid_moves();
     if possible_moves.is_empty() {
         eprintln!(
             "Something went wrong. No possible moves found. Function was probably called after check mate or stale mate."
@@ -154,47 +157,62 @@ fn play_attacking_king(game: &mut Game) -> Option<UserOutput> {
         return Some(UserOutput::InvalidMove);
     }
 
+    possible_moves.shuffle(rng);
     let move_to_play = possible_moves
         .iter()
         .find(|mv| {
-            let mut game = game.clone();
-            match game.process_input(&UserInput::Move(mv.from, mv.to)) {
+            let mut game_after_move = game.clone();
+            match game_after_move.process_input(&UserInput::Move(mv.from, mv.to)) {
                 Some(UserOutput::CheckMate) => true,
-                _ => game.check(game.turn.invert()),
+                _ => game_after_move.check(game.turn.invert()),
             }
         })
         .unwrap_or_else(
             || match possible_moves.iter().find(|mv| mv.captured_piece.is_some()) {
                 Some(mv) => mv,
                 None => {
-                    let rng = &mut rand::thread_rng();
                     let random_index = rng.gen_range(0..possible_moves.len());
                     &possible_moves[random_index]
                 }
             },
         );
 
-    game.process_input(&UserInput::Move(move_to_play.from, move_to_play.to))
+    let user_output = game.process_input(&UserInput::Move(move_to_play.from, move_to_play.to));
+
+    match user_output {
+        Some(UserOutput::Promotion(pos)) => promote_to_piece(game, pos, PieceType::Queen),
+        _ => user_output,
+    }
+}
+
+fn promote_to_piece(game: &mut Game, pos: Position, piece_type: PieceType) -> Option<UserOutput> {
+    let color = game.turn;
+    let piece = Piece { piece_type, color };
+    game.process_input(&UserInput::Promotion(piece, pos))
 }
 
 #[allow(dead_code)]
 fn play_randomly_aggressive(game: &mut Game) -> Option<UserOutput> {
-    let possible_moves = game.get_all_currently_valid_moves();
-    if possible_moves.is_empty() {
-        panic!(
+    let rng = &mut rand::thread_rng();
+    let mut possible_moves = game.get_all_currently_valid_moves();
+    assert!(!possible_moves.is_empty(), 
             "Something went wrong. No possible moves found. Function was probably called after check mate or stale mate."
         );
-    }
+    possible_moves.shuffle(rng);
     let move_to_play = match possible_moves.iter().find(|mv| mv.captured_piece.is_some()) {
         Some(mv) => mv,
         None => {
-            let rng = &mut rand::thread_rng();
             let random_index = rng.gen_range(0..possible_moves.len());
             &possible_moves[random_index]
         }
     };
 
-    game.process_input(&UserInput::Move(move_to_play.from, move_to_play.to))
+    let user_output = game.process_input(&UserInput::Move(move_to_play.from, move_to_play.to));
+
+    match user_output {
+        Some(UserOutput::Promotion(pos)) => promote_to_piece(game, pos, PieceType::Queen),
+        _ => user_output,
+    }
 }
 
 #[inline]
@@ -277,6 +295,7 @@ fn draw_pieces(
 
 fn draw(
     game: &Game,
+    finished: bool,
     assets: &Assets,
     user_output: Option<&UserOutput>,
     selected_piece: Option<&SelectedPiece>,
@@ -290,13 +309,13 @@ fn draw(
             UserOutput::StaleMate => "Stalemate!",
             UserOutput::Draw => "Draw!",
             UserOutput::InvalidMove => "Invalid move!",
-            UserOutput::Promotion(_) => "Promotion!",
+            UserOutput::Promotion(_) => "Press Q, R, B or K.",
         };
     };
-    let font_size = 60;
+    let font_size = 50;
     let text_x = WINDOW_SIZE / 2 - rl.measure_text(text, font_size) / 2;
     let text_y = WINDOW_SIZE / 2 - font_size - font_size / 2;
-    let text2 = "Press R to restart";
+    let text2 = "Press Space to restart";
     let text2_x = WINDOW_SIZE / 2 - rl.measure_text(text2, font_size) / 2;
     let text2_y = WINDOW_SIZE / 2 + font_size - font_size / 2;
 
@@ -307,6 +326,8 @@ fn draw(
     draw_pieces(game, assets, selected_piece, &mut d);
     if !text.is_empty() {
         d.draw_text(text, text_x, text_y, font_size, Color::RED);
+    }
+    if finished {
         d.draw_text(text2, text2_x, text2_y, font_size, Color::RED);
     }
 }
@@ -380,7 +401,7 @@ fn update_selected_piece(
 fn main() {
     let available_cores = available_parallelism().unwrap().get();
     let used_cores = available_cores / 2;
-    println!("{} cores available. Using {}.", available_cores, used_cores);
+    println!("{available_cores} cores available. Using {used_cores}.");
     rayon::ThreadPoolBuilder::new()
         .num_threads(used_cores)
         .build_global()
@@ -400,20 +421,38 @@ fn main() {
     let mut finished = false;
     let mut user_output = None;
     let mut selected_piece = None;
+    let mut promotion_piece = None;
     while !rl.window_should_close() {
-        if rl.is_key_pressed(KeyboardKey::KEY_R) {
+        if rl.is_key_pressed(KeyboardKey::KEY_SPACE) {
             game = Game::new();
             finished = false;
             user_output = None;
         }
         if !finished {
-            user_output = update_game(&mut game, &mut selected_piece, &mut rl);
-            if user_output.is_some() {
-                finished = true;
+            if let Some(UserOutput::Promotion(pos)) = user_output {
+                if rl.is_key_pressed(KeyboardKey::KEY_Q) {
+                    promotion_piece = Some(PieceType::Queen);
+                } else if rl.is_key_pressed(KeyboardKey::KEY_R) {
+                    promotion_piece = Some(PieceType::Rook);
+                } else if rl.is_key_pressed(KeyboardKey::KEY_B) {
+                    promotion_piece = Some(PieceType::Bishop);
+                } else if rl.is_key_pressed(KeyboardKey::KEY_K) {
+                    promotion_piece = Some(PieceType::Knight);
+                }
+                if let Some(promotion_piece) = promotion_piece {
+                    user_output = promote_to_piece(&mut game, pos, promotion_piece);
+                }
+                promotion_piece = None;
+            } else {
+                user_output = update_game(&mut game, &mut selected_piece, &mut rl);
+                if let Some(UserOutput::CheckMate | UserOutput::StaleMate | UserOutput::Draw) = user_output {
+                    finished = true;
+                }
             }
         }
         draw(
             &game,
+            finished,
             &assets,
             user_output.as_ref(),
             selected_piece.as_ref(),
