@@ -10,12 +10,12 @@ use rusty_chess_core::game::UserInput;
 use rusty_chess_core::game::UserOutput;
 use rusty_chess_core::game::BOARD_SIZE;
 use std::path::Path;
-use std::thread::available_parallelism;
 
 const WINDOW_SIZE: i32 = 640;
 const RECT_SIZE: i32 = WINDOW_SIZE / BOARD_SIZE as i32;
 const TITLE: &str = "Rusty Chess";
 
+#[cfg(not(target_arch = "wasm32"))]
 const CRATE_PATH: &str = env!("CARGO_MANIFEST_DIR");
 
 const ASSETS_PATH: &str = "assets";
@@ -49,7 +49,10 @@ struct Assets {
 }
 
 fn get_asset_path(asset: &str) -> String {
+    #[cfg(not(target_arch = "wasm32"))]
     let path = Path::new(CRATE_PATH).join(ASSETS_PATH).join(asset);
+    #[cfg(target_arch = "wasm32")]
+    let path = Path::new("gui").join(ASSETS_PATH).join(asset); // TODO: Do not hardcode gui path
     debug_assert!(path.exists(), "Asset not found: {path:?}");
     path.to_str().unwrap().to_string()
 }
@@ -195,7 +198,7 @@ fn promote_to_piece(game: &mut Game, pos: Position, piece_type: PieceType) -> Op
 fn play_randomly_aggressive(game: &mut Game) -> Option<UserOutput> {
     let rng = &mut rand::thread_rng();
     let mut possible_moves = game.get_all_currently_valid_moves();
-    assert!(!possible_moves.is_empty(), 
+    assert!(!possible_moves.is_empty(),
             "Something went wrong. No possible moves found. Function was probably called after check mate or stale mate."
         );
     possible_moves.shuffle(rng);
@@ -399,14 +402,6 @@ fn update_selected_piece(
 }
 
 fn main() {
-    let available_cores = available_parallelism().unwrap().get();
-    let used_cores = available_cores / 2;
-    println!("{available_cores} cores available. Using {used_cores}.");
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(used_cores)
-        .build_global()
-        .unwrap();
-
     let (mut rl, thread) = raylib::init()
         .size(WINDOW_SIZE, WINDOW_SIZE)
         .title(TITLE)
@@ -445,7 +440,9 @@ fn main() {
                 promotion_piece = None;
             } else {
                 user_output = update_game(&mut game, &mut selected_piece, &mut rl);
-                if let Some(UserOutput::CheckMate | UserOutput::StaleMate | UserOutput::Draw) = user_output {
+                if let Some(UserOutput::CheckMate | UserOutput::StaleMate | UserOutput::Draw) =
+                    user_output
+                {
                     finished = true;
                 }
             }

@@ -12,6 +12,5 @@ exclude.workspace = true
 [dependencies]
 rusty-chess-core = { path = "../core", version = "0.3.0" }
 rand = "0.8.5"
-rayon = { workspace = true }
 raylib = "5.0.1"
 

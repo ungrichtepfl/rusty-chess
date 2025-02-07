@@ -1,2 +1,4 @@
 .idea/
 /target
+rusty-chess-gui.js
+rusty_chess_gui.wasm
