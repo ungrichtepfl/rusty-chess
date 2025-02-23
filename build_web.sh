@@ -7,8 +7,8 @@ if [[ "$1" == "-c" ]]; then
 fi
 
 EMCC_CFLAGS="-sUSE_GLFW=3"
-# EMCC_CFLAGS+=" -sWASM=1"
-# EMCC_CFLAGS+=" -sGL_ENABLE_GET_PROC_ADDRESS"
+EMCC_CFLAGS+=" -sMODULARIZE=1"
+EMCC_CFLAGS+=" -sEXPORT_NAME=createRustyChess"
 EMCC_CFLAGS+=" -sASYNCIFY"
 EMCC_CFLAGS+=" --embed-file gui/assets"
 EMCC_CFLAGS+=" -DPLATFORM_WEB"
