@@ -19,4 +19,4 @@ EMCC_CFLAGS="$EMCC_CFLAGS" cargo build --release $CARGO_FLAG # NOTE: Cannot inst
 
 cp ./target/wasm32-unknown-emscripten/release/{rusty-chess-gui.js,rusty_chess_gui.wasm} .
 
-serve -s
+python3 -m http.server 3000
