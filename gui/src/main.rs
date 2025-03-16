@@ -9,6 +9,7 @@ use rusty_chess_core::game::Position;
 use rusty_chess_core::game::UserInput;
 use rusty_chess_core::game::UserOutput;
 use rusty_chess_core::game::BOARD_SIZE;
+use rusty_chess_core::game::TOTAL_SQUARES;
 use std::path::Path;
 
 const WINDOW_SIZE: i32 = 640;
@@ -361,7 +362,7 @@ fn update_selected_piece(
         || rl.is_gesture_detected(Gesture::GESTURE_HOLD)
     {
         let mouse_pos = rl.get_touch_position(0);
-        if mouse_pos != *old_mouse_pos {
+        if *old_mouse_pos != mouse_pos {
             *old_mouse_pos = mouse_pos;
             let x = mouse_pos.x as i32;
             let y = mouse_pos.y as i32;
@@ -370,17 +371,20 @@ fn update_selected_piece(
                 selected_piece.y = y;
             } else {
                 let game_index = coord_to_game_index(x, y);
-                let square_x = x % RECT_SIZE;
-                let square_y = y % RECT_SIZE;
-                if let Some(piece) = game.board[game_index] {
-                    *selected_piece = Some(SelectedPiece {
-                        piece,
-                        game_index,
-                        square_x,
-                        square_y,
-                        x,
-                        y,
-                    });
+                if x >= 0 && y >= 0 && game_index < TOTAL_SQUARES {
+                    let square_x = x % RECT_SIZE;
+                    let square_y = y % RECT_SIZE;
+
+                    if let Some(piece) = game.board[game_index] {
+                        *selected_piece = Some(SelectedPiece {
+                            piece,
+                            game_index,
+                            square_x,
+                            square_y,
+                            x,
+                            y,
+                        });
+                    }
                 }
             }
         }
