@@ -340,10 +340,9 @@ fn update_game(
     game: &mut Game,
     selected_piece: &mut Option<SelectedPiece>,
     rl: &mut RaylibHandle,
-    old_mouse_pos: &mut Vector2,
 ) -> Option<UserOutput> {
     if game.turn == ChessColor::White {
-        update_selected_piece(game, selected_piece, rl, old_mouse_pos)
+        update_selected_piece(game, selected_piece, rl)
     } else {
         play_attacking_king(game)
     }
@@ -353,7 +352,6 @@ fn update_selected_piece(
     game: &mut Game,
     selected_piece: &mut Option<SelectedPiece>,
     rl: &mut RaylibHandle,
-    old_mouse_pos: &mut Vector2,
 ) -> Option<UserOutput> {
     let mut user_output = None;
     // NOTE: To detect if a piece is selected Gestures work better than the mouse when compiling to wasm but does not matter if compiled to GUI
@@ -362,29 +360,26 @@ fn update_selected_piece(
         || rl.is_gesture_detected(Gesture::GESTURE_HOLD)
     {
         let mouse_pos = rl.get_touch_position(0);
-        if *old_mouse_pos != mouse_pos {
-            *old_mouse_pos = mouse_pos;
-            let x = mouse_pos.x as i32;
-            let y = mouse_pos.y as i32;
-            if let Some(selected_piece) = selected_piece {
-                selected_piece.x = x;
-                selected_piece.y = y;
-            } else {
-                let game_index = coord_to_game_index(x, y);
-                if x >= 0 && y >= 0 && game_index < TOTAL_SQUARES {
-                    let square_x = x % RECT_SIZE;
-                    let square_y = y % RECT_SIZE;
+        let x = mouse_pos.x as i32;
+        let y = mouse_pos.y as i32;
+        if let Some(selected_piece) = selected_piece {
+            selected_piece.x = x;
+            selected_piece.y = y;
+        } else {
+            let game_index = coord_to_game_index(x, y);
+            if x >= 0 && y >= 0 && game_index < TOTAL_SQUARES {
+                let square_x = x % RECT_SIZE;
+                let square_y = y % RECT_SIZE;
 
-                    if let Some(piece) = game.board[game_index] {
-                        *selected_piece = Some(SelectedPiece {
-                            piece,
-                            game_index,
-                            square_x,
-                            square_y,
-                            x,
-                            y,
-                        });
-                    }
+                if let Some(piece) = game.board[game_index] {
+                    *selected_piece = Some(SelectedPiece {
+                        piece,
+                        game_index,
+                        square_x,
+                        square_y,
+                        x,
+                        y,
+                    });
                 }
             }
         }
@@ -432,8 +427,6 @@ fn main() {
     let mut user_output = None;
     let mut selected_piece = None;
     let mut promotion_piece = None;
-    // HACK: This is a hack for WASM to prevent a wrongly cached mouse position to interfere with the game:
-    let mut old_mouse_pos = Vector2 { x: -1.0, y: -1.0 };
     while !rl.window_should_close() {
         if rl.is_key_pressed(KeyboardKey::KEY_SPACE) {
             game = Game::new();
@@ -456,8 +449,7 @@ fn main() {
                 }
                 promotion_piece = None;
             } else {
-                user_output =
-                    update_game(&mut game, &mut selected_piece, &mut rl, &mut old_mouse_pos);
+                user_output = update_game(&mut game, &mut selected_piece, &mut rl);
                 if let Some(UserOutput::CheckMate | UserOutput::StaleMate | UserOutput::Draw) =
                     user_output
                 {
