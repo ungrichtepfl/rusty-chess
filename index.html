@@ -91,7 +91,35 @@
         return canvas;
       })()
     };
-    createRustyChess(Module);
+    createRustyChess(Module).then((module) => {
+      document.getElementById("canvas").addEventListener("touchmove", function (event) {
+        if (event.touches.length > 0) { // Check if there is at least one touch point
+          let touch = event.touches[0]; // Get first touch
+          // NOTE: must be rescaled if canvas position or canvas scaling changes.
+          module._send_mouse_button_down(touch.clientX, touch.clientY);
+        }
+        event.preventDefault(); // Prevent scrolling while touching
+      });
+      document.getElementById("canvas").addEventListener("touchend", function (event) {
+        module._send_mouse_button_released();
+      });
+      document.getElementById("canvas").addEventListener("touchcancel", function (event) {
+        module._send_mouse_button_released();
+      });
+
+      document.getElementById("canvas").addEventListener("mousemove", function (event) {
+        if (event.buttons & 1) {  // Left button pressed
+          // NOTE: must be rescaled if canvas position or canvas scaling changes.
+          module._send_mouse_button_down(event.clientX, event.clientY);
+        }
+      });
+      document.getElementById("canvas").addEventListener("mouseup", function (event) {
+        if (event.button === 0) {  // Left button released
+          module._send_mouse_button_released();
+        }
+      });
+      module._start_game();
+    });
   </script>
 </body>
 

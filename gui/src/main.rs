@@ -11,6 +11,8 @@ use rusty_chess_core::game::UserOutput;
 use rusty_chess_core::game::BOARD_SIZE;
 use rusty_chess_core::game::TOTAL_SQUARES;
 use std::path::Path;
+#[cfg(target_arch = "wasm32")]
+use std::sync::Mutex;
 
 const WINDOW_SIZE: i32 = 640;
 const RECT_SIZE: i32 = WINDOW_SIZE / BOARD_SIZE as i32;
@@ -348,18 +350,61 @@ fn update_game(
     }
 }
 
+// NOTE: If you want to use the game in elm somehow there is a problem with the default raylib functions
+// To make it work we need to define the callbacks to update the mouse by our own:
+#[cfg(target_arch = "wasm32")]
+static WASM_MOUSE: Mutex<Vector2> = Mutex::new(Vector2::zero());
+#[cfg(target_arch = "wasm32")]
+static WASM_MOUSE_DOWN: Mutex<bool> = Mutex::new(false);
+
+#[cfg(target_arch = "wasm32")]
+#[inline]
+fn is_mouse_button_down(_: &mut RaylibHandle) -> bool {
+    *WASM_MOUSE_DOWN.lock().unwrap()
+}
+
+#[cfg(target_arch = "wasm32")]
+#[no_mangle]
+pub extern "C" fn send_mouse_button_down(x: i32, y: i32) {
+    let mut mouse = WASM_MOUSE.lock().unwrap();
+    *mouse = Vector2::new(x as f32, y as f32);
+    let mut down = WASM_MOUSE_DOWN.lock().unwrap();
+    *down = true;
+}
+
+#[cfg(target_arch = "wasm32")]
+#[no_mangle]
+pub extern "C" fn send_mouse_button_released() {
+    let mut down = WASM_MOUSE_DOWN.lock().unwrap();
+    *down = false;
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[inline]
+fn is_mouse_button_down(rl: &mut RaylibHandle) -> bool {
+    rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[inline]
+fn get_mouse_position(rl: &mut RaylibHandle) -> Vector2 {
+    rl.get_mouse_position()
+}
+
+#[cfg(target_arch = "wasm32")]
+#[inline]
+fn get_mouse_position(_: &mut RaylibHandle) -> Vector2 {
+    *WASM_MOUSE.lock().unwrap()
+}
+
 fn update_selected_piece(
     game: &mut Game,
     selected_piece: &mut Option<SelectedPiece>,
     rl: &mut RaylibHandle,
 ) -> Option<UserOutput> {
     let mut user_output = None;
-    // NOTE: To detect if a piece is selected Gestures work better than the mouse when compiling to wasm but does not matter if compiled to GUI
-    if rl.is_gesture_detected(Gesture::GESTURE_TAP)
-        || rl.is_gesture_detected(Gesture::GESTURE_DRAG)
-        || rl.is_gesture_detected(Gesture::GESTURE_HOLD)
-    {
-        let mouse_pos = rl.get_touch_position(0);
+    if is_mouse_button_down(rl) {
+        let mouse_pos = get_mouse_position(rl);
         let x = mouse_pos.x as i32;
         let y = mouse_pos.y as i32;
         if let Some(selected_piece) = selected_piece {
@@ -383,11 +428,7 @@ fn update_selected_piece(
                 }
             }
         }
-    }
-    // NOTE: In WASM the touch gets remapped to the mouse. For releasing this works better than the gestures:
-    else if rl.is_mouse_button_released(MouseButton::MOUSE_BUTTON_LEFT)
-        && selected_piece.is_some()
-    {
+    } else if selected_piece.is_some() {
         let mouse_pos = rl.get_mouse_position();
         let x = mouse_pos.x as i32;
         let y = mouse_pos.y as i32;
@@ -405,13 +446,12 @@ fn update_selected_piece(
             }
         }
         *selected_piece = None;
-    } else {
-        *selected_piece = None;
     }
     user_output
 }
 
-fn main() {
+#[no_mangle]
+pub extern "C" fn start_game() {
     let (mut rl, thread) = raylib::init()
         .size(WINDOW_SIZE, WINDOW_SIZE)
         .title(TITLE)
@@ -467,4 +507,8 @@ fn main() {
             &thread,
         );
     }
+}
+
+fn main() {
+    start_game();
 }
