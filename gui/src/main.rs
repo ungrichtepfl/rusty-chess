@@ -339,9 +339,10 @@ fn update_game(
     game: &mut Game,
     selected_piece: &mut Option<SelectedPiece>,
     rl: &mut RaylibHandle,
+    old_mouse_pos: &mut Vector2,
 ) -> Option<UserOutput> {
     if game.turn == ChessColor::White {
-        update_selected_piece(game, selected_piece, rl)
+        update_selected_piece(game, selected_piece, rl, old_mouse_pos)
     } else {
         play_attacking_king(game)
     }
@@ -351,31 +352,41 @@ fn update_selected_piece(
     game: &mut Game,
     selected_piece: &mut Option<SelectedPiece>,
     rl: &mut RaylibHandle,
+    old_mouse_pos: &mut Vector2,
 ) -> Option<UserOutput> {
     let mut user_output = None;
-    if rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT) {
-        let mouse_pos = rl.get_mouse_position();
-        let x = mouse_pos.x as i32;
-        let y = mouse_pos.y as i32;
-        if let Some(selected_piece) = selected_piece {
-            selected_piece.x = x;
-            selected_piece.y = y;
-        } else {
-            let game_index = coord_to_game_index(x, y);
-            let square_x = x % RECT_SIZE;
-            let square_y = y % RECT_SIZE;
-            if let Some(piece) = game.board[game_index] {
-                *selected_piece = Some(SelectedPiece {
-                    piece,
-                    game_index,
-                    square_x,
-                    square_y,
-                    x,
-                    y,
-                });
+    // NOTE: To detect if a piece is selected Gestures work better than the mouse when compiling to wasm but does not matter if compiled to GUI
+    if rl.is_gesture_detected(Gesture::GESTURE_TAP)
+        || rl.is_gesture_detected(Gesture::GESTURE_DRAG)
+        || rl.is_gesture_detected(Gesture::GESTURE_HOLD)
+    {
+        let mouse_pos = rl.get_touch_position(0);
+        if mouse_pos != *old_mouse_pos {
+            *old_mouse_pos = mouse_pos;
+            let x = mouse_pos.x as i32;
+            let y = mouse_pos.y as i32;
+            if let Some(selected_piece) = selected_piece {
+                selected_piece.x = x;
+                selected_piece.y = y;
+            } else {
+                let game_index = coord_to_game_index(x, y);
+                let square_x = x % RECT_SIZE;
+                let square_y = y % RECT_SIZE;
+                if let Some(piece) = game.board[game_index] {
+                    *selected_piece = Some(SelectedPiece {
+                        piece,
+                        game_index,
+                        square_x,
+                        square_y,
+                        x,
+                        y,
+                    });
+                }
             }
         }
-    } else if rl.is_mouse_button_released(MouseButton::MOUSE_BUTTON_LEFT)
+    }
+    // NOTE: In WASM the touch gets remapped to the mouse. For releasing this works better than the gestures:
+    else if rl.is_mouse_button_released(MouseButton::MOUSE_BUTTON_LEFT)
         && selected_piece.is_some()
     {
         let mouse_pos = rl.get_mouse_position();
@@ -417,6 +428,8 @@ fn main() {
     let mut user_output = None;
     let mut selected_piece = None;
     let mut promotion_piece = None;
+    // HACK: This is a hack for WASM to prevent a wrongly cached mouse position to interfere with the game:
+    let mut old_mouse_pos = Vector2 { x: -1.0, y: -1.0 };
     while !rl.window_should_close() {
         if rl.is_key_pressed(KeyboardKey::KEY_SPACE) {
             game = Game::new();
@@ -439,7 +452,8 @@ fn main() {
                 }
                 promotion_piece = None;
             } else {
-                user_output = update_game(&mut game, &mut selected_piece, &mut rl);
+                user_output =
+                    update_game(&mut game, &mut selected_piece, &mut rl, &mut old_mouse_pos);
                 if let Some(UserOutput::CheckMate | UserOutput::StaleMate | UserOutput::Draw) =
                     user_output
                 {
