@@ -7,7 +7,7 @@ if [[ "$1" == "-c" ]]; then
 fi
 
 EMCC_CFLAGS="-sUSE_GLFW=3"
-EMCC_CFLAGS+=" -sMODULARIZE=1"
+EMCC_CFLAGS+=" -sMODULARIZE=1 -sEXPORT_ES6=1"
 EMCC_CFLAGS+=" -sEXPORT_NAME=createRustyChess"
 EMCC_CFLAGS+=" -sEXPORTED_FUNCTIONS=_start_game,_send_mouse_button_down,_send_mouse_button_released"
 EMCC_CFLAGS+=" -sASYNCIFY"

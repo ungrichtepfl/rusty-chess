@@ -70,9 +70,8 @@
 <body>
   <canvas class=emscripten id=canvas oncontextmenu=event.preventDefault() tabindex=-1></canvas>
   <p id="output" />
-  <script src=rusty-chess-gui.js>
-  </script>
-  <script>
+  <script type="module">
+    import createRustyChess from "./rusty-chess-gui.js";
     var Module = {
       print: (function () {
         var element = document.getElementById('output');
